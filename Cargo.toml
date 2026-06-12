@@ -1,0 +1,12 @@
+[package]
+name = "abiv2"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+solana-address = { version = "2.6", features = ["copy"] }
+solana-program-error = "3.0"
+
+[dev-dependencies]
+libc = "0.2"
+solana-address = { version = "2.6", features = ["atomic"] }
