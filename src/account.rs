@@ -47,7 +47,7 @@ const _: () = {
 };
 
 impl Account {
-    /// Returns a pointer to the corresponding transaction account metadata.
+    /// Return a pointer to the corresponding transaction account metadata.
     ///
     /// # Safety
     ///
@@ -60,7 +60,7 @@ impl Account {
             as *const TransactionAccount
     }
 
-    /// Returns a pointer to this account's borrow-state byte.
+    /// Return a pointer to this account's borrow-state byte.
     ///
     /// # Safety
     ///
@@ -71,7 +71,7 @@ impl Account {
         (HEAP_ADDRESS + self.transaction_index as usize) as *mut u8
     }
 
-    /// Returns the address of the account.
+    /// Return the address of the account.
     #[inline(always)]
     pub fn address(&self) -> &Address {
         // SAFETY: The `transaction_account` pointer is valid under `Account`'s
@@ -79,7 +79,7 @@ impl Account {
         unsafe { &(*self.transaction_account()).address }
     }
 
-    /// Returns an immutable reference to the data in the account.
+    /// Return an immutable reference to the data in the account.
     ///
     /// # Safety
     ///
@@ -94,7 +94,7 @@ impl Account {
         unsafe { (*self.transaction_account()).data.as_slice() }
     }
 
-    /// Returns a mutable reference to the data in the account.
+    /// Return a mutable reference to the data in the account.
     ///
     /// # Safety
     ///
@@ -142,7 +142,7 @@ impl Account {
         Ok(())
     }
 
-    /// Returns the length of the account data in bytes.
+    /// Return the length of the account data in bytes.
     #[inline(always)]
     pub fn data_len(&self) -> usize {
         // SAFETY: The `transaction_account` pointer is valid under
@@ -150,13 +150,13 @@ impl Account {
         unsafe { (*self.transaction_account()).data.len.get() as usize }
     }
 
-    /// Returns `true` if the account data is borrowed in any form.
+    /// Return `true` if the account data is borrowed in any form.
     #[inline(always)]
     pub fn is_borrowed(&self) -> bool {
         unsafe { *self.borrow_state() != NOT_BORROWED }
     }
 
-    /// Returns `true` if the account data is empty.
+    /// Return `true` if the account data is empty.
     ///
     /// An account is considered empty if the data length is zero.
     #[inline(always)]
@@ -164,25 +164,25 @@ impl Account {
         self.data_len() == 0
     }
 
-    /// Returns `true` if the account data is mutably borrowed.
+    /// Return `true` if the account data is mutably borrowed.
     #[inline(always)]
     pub fn is_mutably_borrowed(&self) -> bool {
         unsafe { *self.borrow_state() == MUTABLY_BORROWED }
     }
 
-    /// Returns `true` if the account signed the instruction.
+    /// Return `true` if the account signed the instruction.
     #[inline(always)]
     pub fn is_signer(&self) -> bool {
         self.signer != 0
     }
 
-    /// Returns `true` if the account can be modified by the instruction.
+    /// Return `true` if the account can be modified by the instruction.
     #[inline(always)]
     pub fn is_writable(&self) -> bool {
         self.writable != 0
     }
 
-    /// Returns the account lamport balance.
+    /// Return the account lamport balance.
     #[inline(always)]
     pub fn lamports(&self) -> u64 {
         // SAFETY: The `transaction_account` pointer is valid under
@@ -190,7 +190,7 @@ impl Account {
         unsafe { (*self.transaction_account()).lamports.get() }
     }
 
-    /// Returns the address of the program that owns the account.
+    /// Return the address of the program that owns the account.
     #[inline(always)]
     pub fn owner(&self) -> Address {
         // SAFETY: The `transaction_account` pointer is valid under
@@ -198,7 +198,7 @@ impl Account {
         unsafe { (*self.transaction_account()).owner.get() }
     }
 
-    /// Returns `true` if the account is owned by `program`.
+    /// Return `true` if the account is owned by `program`.
     #[inline(always)]
     pub fn owned_by(&self, program: &Address) -> bool {
         // SAFETY: The `transaction_account` pointer is valid under

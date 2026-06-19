@@ -59,7 +59,7 @@ unsafe impl GlobalAlloc for BumpAllocator {
     /// Allocates memory as described by the given `layout` using a forward
     /// bump allocator.
     ///
-    /// Returns a pointer to newly-allocated memory, or `null` to indicate
+    /// Return a pointer to newly-allocated memory, or `null` to indicate
     /// allocation failure.
     ///
     /// # Safety

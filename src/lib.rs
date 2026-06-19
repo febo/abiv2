@@ -20,7 +20,6 @@ pub use {
 pub mod account;
 pub mod context;
 pub mod entrypoint;
-pub mod instruction;
 pub mod syscall;
 
 /// Reserved bytes for account borrow flags.
@@ -58,13 +57,13 @@ pub(crate) struct MemoryMapping<T> {
 }
 
 impl<T> MemoryMapping<T> {
-    /// Returns the mapped region as an immutable slice.
+    /// Return the mapped region as an immutable slice.
     #[inline(always)]
     pub(crate) fn as_slice(&self) -> &[T] {
         unsafe { from_raw_parts(self.ptr, self.len.get() as usize) }
     }
 
-    /// Returns a mutable slice for the memory region.
+    /// Return a mutable slice for the memory region.
     ///
     /// # Safety
     ///

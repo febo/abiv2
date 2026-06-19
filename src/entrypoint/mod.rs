@@ -1,8 +1,10 @@
 mod allocator;
 
+use crate::context::InstructionContext;
 pub use allocator::BumpAllocator;
+
 use {
-    crate::{account::Account, instruction::Instruction},
+    crate::account::Account,
     solana_program_error::{ProgramError, ProgramResult},
 };
 
@@ -23,7 +25,7 @@ macro_rules! program_entrypoint {
         /// Program entrypoint.
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn entrypoint(
-            instruction: *const $crate::instruction::Instruction,
+            instruction: *const $crate::context::InstructionContext,
             accounts: *const $crate::account::Account,
             accounts_len: u64,
             instruction_data: *const u8,
@@ -50,15 +52,15 @@ macro_rules! program_entrypoint {
 /// the lifetime of the program execution.
 #[inline(always)]
 pub unsafe fn process_entrypoint<F>(
-    instruction: &Instruction,
+    context: &InstructionContext,
     accounts: &[Account],
     instruction_data: &[u8],
     process_instruction: F,
 ) -> u64
 where
-    F: FnOnce(&Instruction, &[Account], &[u8]) -> ProgramResult,
+    F: FnOnce(&InstructionContext, &[Account], &[u8]) -> ProgramResult,
 {
-    match process_instruction(instruction, accounts, instruction_data) {
+    match process_instruction(context, accounts, instruction_data) {
         Ok(()) => SUCCESS,
         Err(e) => program_error_to_u64(e),
     }
@@ -175,7 +177,7 @@ macro_rules! default_allocator {
             /// Unchecked accessors for static allocations.
             pub mod unchecked {
                 $(
-                    #[doc = concat!("Returns an unchecked mutable reference to `", stringify!($ptr_name), "`.")]
+                    #[doc = concat!("Return an unchecked mutable reference to `", stringify!($ptr_name), "`.")]
                     ///
                     /// # Safety
                     ///
@@ -193,7 +195,7 @@ macro_rules! default_allocator {
             }
 
             $(
-                #[doc = concat!("Returns a checked mutable reference to `", stringify!($ptr_name), "`.")]
+                #[doc = concat!("Return a checked mutable reference to `", stringify!($ptr_name), "`.")]
                 #[inline(always)]
                 pub fn $ptr_name() -> Result<$crate::RefMut<'static, $ptr_ty>, $crate::error::ProgramError> {
                     let borrow_state = STATIC_ALLOCATOR.$ptr_name.0 as *mut u8;
