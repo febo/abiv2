@@ -4,9 +4,9 @@
 
 <p align="center">
   <img
-    width="200"
+    width="300"
     alt="abiv2"
-    src="https://github.com/user-attachments/assets/<PLACEHOLDER>"
+    src="https://github.com/user-attachments/assets/e994b446-35aa-42b2-bfab-ebe856c19130"
   />
 </p>
 
