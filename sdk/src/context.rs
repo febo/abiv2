@@ -1,7 +1,7 @@
 use {
     crate::{
-        MemoryMapping, Volatile,
         account::{Account, TransactionAccount},
+        MemoryMapping, Volatile,
     },
     core::slice::from_raw_parts,
     solana_address::Address,

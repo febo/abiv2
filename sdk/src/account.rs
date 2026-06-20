@@ -1,11 +1,12 @@
 use {
     crate::{
-        HEAP_ADDRESS, MUTABLY_BORROWED, MemoryMapping, NOT_BORROWED, Ref, RefMut, Volatile,
         context::TRANSACTION_ACCOUNTS_ADDRESS,
+        syscall::{assign_owner, set_buffer_length, sol_transfer_lamports},
+        MemoryMapping, Ref, RefMut, Volatile, HEAP_ADDRESS, MUTABLY_BORROWED, NOT_BORROWED,
     },
     core::{
         marker::PhantomData,
-        ptr::{NonNull, read_unaligned, read_volatile},
+        ptr::{read_unaligned, read_volatile, NonNull},
     },
     solana_address::Address,
     solana_program_error::ProgramError,
@@ -77,6 +78,10 @@ impl Account {
         // SAFETY: The `transaction_account` pointer is valid under `Account`'s
         // runtime memory invariants.
         unsafe { &(*self.transaction_account()).address }
+    }
+
+    pub fn assign(&self, program: &Address) {
+        assign_owner(self.transaction_index as u64, program);
     }
 
     /// Return an immutable reference to the data in the account.
@@ -215,6 +220,25 @@ impl Account {
                 && read_volatile(owner_ptr.add(2)) == read_unaligned(program_ptr.add(2))
                 && read_volatile(owner_ptr.add(3)) == read_unaligned(program_ptr.add(3))
         }
+    }
+
+    /// Transfer lamports to another account.
+    pub fn transfer_lamports(&self, destination: &Account, lamports: u64) {
+        sol_transfer_lamports(
+            destination.transaction_index as u64,
+            self.transaction_index as u64,
+            lamports,
+        );
+    }
+
+    /// Resize (either truncating or zero extending) the account's data.
+    pub fn resize(&self, new_len: usize) {
+        set_buffer_length(
+            // SAFETY: The `transaction_account` pointer is valid under
+            // `Account`'s runtime memory invariants.
+            unsafe { (*self.transaction_account()).data.ptr as u64 },
+            new_len as u64,
+        );
     }
 
     /// Tries to get an immutable reference to the account data, failing if the

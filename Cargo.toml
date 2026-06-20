@@ -1,12 +1,19 @@
-[package]
-name = "abiv2"
-version = "0.0.0"
-edition = "2024"
+[workspace]
+resolver = "2"
+members = [
+    "benchmark",
+    "programs/assign-owner",
+    "programs/transfer-lamports",
+    "sdk"
+]
 
-[dependencies]
-solana-address = { version = "2.6", features = ["copy"] }
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/febo/abiv2"
+rust-version = "1.89.0"
+
+[workspace.dependencies]
+abiv2 = { path = "sdk" }
+solana-address = "2.6"
 solana-program-error = "3.0"
-
-[dev-dependencies]
-libc = "0.2"
-solana-address = { version = "2.6", features = ["atomic"] }

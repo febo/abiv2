@@ -1,12 +1,13 @@
 //! A library for creating ABIv2 Solana programs in Rust.
 
 #![no_std]
+#![allow(clippy::arithmetic_side_effects)]
 
 use core::{
     marker::PhantomData,
     mem::ManuallyDrop,
     ops::{Deref, DerefMut},
-    ptr::{NonNull, read_volatile, write_volatile},
+    ptr::{read_volatile, write_volatile, NonNull},
     slice::{from_raw_parts, from_raw_parts_mut},
 };
 // Re-export for downstream use:

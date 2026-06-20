@@ -1,10 +1,8 @@
 mod allocator;
 
-use crate::context::InstructionContext;
 pub use allocator::BumpAllocator;
-
 use {
-    crate::account::Account,
+    crate::{account::Account, context::InstructionContext},
     solana_program_error::{ProgramError, ProgramResult},
 };
 
