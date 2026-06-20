@@ -42,7 +42,7 @@ pub struct InstructionContext {
     /// Index of the parent instruction in the transaction.
     ///
     /// This value is set to `u16::MAX` for top-level instructions.
-    parent_instruction: u16,
+    parent_instruction_index: u16,
 
     /// Pointer to the accounts passed to the instruction.
     accounts_ptr: *const Account,
@@ -81,14 +81,18 @@ impl InstructionContext {
     /// Top-level instructions do not have a parent instruction.
     #[inline(always)]
     pub const fn has_parent(&self) -> bool {
-        self.parent_instruction != u16::MAX
+        self.parent_instruction_index != u16::MAX
     }
 
     /// Return the index of the parent instruction if there is one.
     #[inline(always)]
-    pub const fn parent(&self) -> Option<u16> {
+    pub const fn parent(&self) -> Option<&'static InstructionContext> {
         if self.has_parent() {
-            Some(self.parent_instruction)
+            Some(unsafe {
+                &*((INSTRUCTION_ADDRESS
+                    + (self.parent_instruction_index as usize * size_of::<InstructionContext>()))
+                    as *const _)
+            })
         } else {
             None
         }
@@ -111,12 +115,12 @@ pub struct TransactionContext {
     /// and top-level instructions.
     ///
     /// This value is updated by the runtime as CPIs are invoked.
-    instruction_count_in_trace: Volatile<u16>,
+    instruction_count: Volatile<u16>,
 
     /// Current number of CPIs in the transaction.
     ///
     /// Includes CPIs that are currently executing or have already completed.
-    cpi_count_in_trace: Volatile<u16>,
+    cpi_count: Volatile<u16>,
 
     /// Total number of accounts in the transaction.
     pub account_count: u16,
@@ -130,12 +134,7 @@ const _: () = {
 
 impl TransactionContext {
     /// Return the transaction execution context.
-    ///
-    /// # Safety
-    ///
-    /// This function is safe to call only when the runtime has mapped
-    /// transaction context at [`TRANSACTION_CONTEXT_ADDRESS`].
-    pub const unsafe fn get() -> &'static Self {
+    pub const fn get() -> &'static Self {
         unsafe { &*(TRANSACTION_CONTEXT_ADDRESS as *const _) }
     }
 
@@ -153,7 +152,7 @@ impl TransactionContext {
     ///
     /// Includes CPIs that are currently executing or have already completed.
     pub fn cpi_count(&self) -> u16 {
-        self.cpi_count_in_trace.get()
+        self.cpi_count.get()
     }
 
     /// Return the instruction currently being executed.
@@ -169,7 +168,7 @@ impl TransactionContext {
     ///
     /// This value is updated by the runtime as CPIs are executed.
     pub fn instruction_count(&self) -> u16 {
-        self.instruction_count_in_trace.get()
+        self.instruction_count.get()
     }
 
     /// Return the current list of instructions.
