@@ -6,7 +6,7 @@
   <img
     width="300"
     alt="abiv2"
-    src="https://github.com/user-attachments/assets/e994b446-35aa-42b2-bfab-ebe856c19130"
+    src="https://github.com/user-attachments/assets/0d47e674-0cdb-429f-a887-9fa0b9182491"
   />
 </p>
 
