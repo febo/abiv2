@@ -301,13 +301,18 @@ macro_rules! default_panic_handler {
         #[cfg(any(target_os = "solana", target_arch = "bpf"))]
         #[no_mangle]
         fn custom_panic(info: &core::panic::PanicInfo<'_>) {
+            // Panic reporting.
+            const PANICKED: &str = "** PANICKED **";
+            unsafe { $crate::syscall::sol_log_(PANICKED.as_ptr(), PANICKED.len() as u64) };
+
             if let Some(location) = info.location() {
                 let location = location.file();
                 unsafe { $crate::syscall::sol_log_(location.as_ptr(), location.len() as u64) };
             }
-            // Panic reporting.
-            const PANICKED: &str = "** PANICKED **";
-            unsafe { $crate::syscall::sol_log_(PANICKED.as_ptr(), PANICKED.len() as u64) };
+
+            if let Some(message) = info.message().as_str() {
+                unsafe { $crate::syscall::sol_log_(message.as_ptr(), message.len() as u64) };
+            }
         }
     };
 }

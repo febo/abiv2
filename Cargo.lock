@@ -731,6 +731,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "deny-allocator"
+version = "0.0.0"
+dependencies = [
+ "abiv2",
+]
+
+[[package]]
 name = "der"
 version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"

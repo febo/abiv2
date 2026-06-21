@@ -4,6 +4,7 @@ members = [
     "benchmark",
     "programs/account-resize",
     "programs/assign-owner",
+    "programs/deny-allocator",
     "programs/transfer-lamports",
     "sdk"
 ]
