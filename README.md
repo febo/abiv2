@@ -25,6 +25,8 @@ This repository contains an `"alpha"` (work-in-progress) SDK implementation to
 write Solana programs using ABIv2. It is heavily inspired on
 [pinocchio](https://github.com/anza-xyz/pinocchio), providing a similar API.
 
+The full ABIv2 specification can be found on [SIMD-0177](https://github.com/Lichtso/solana-improvement-documents/blob/972ae0be4e930318760321c490ac2236934321e0/proposals/0177-program-runtime-abiv2.md).
+
 > ⚠️ The content of the repository should be treated as work-in-progress and it
 > has not been audited. Currently it is not possible to deploy programs using
 > ABIv2. The API of the SDK is subject to change. Contributions are welcome!
