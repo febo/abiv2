@@ -111,3 +111,19 @@ unsafe impl GlobalAlloc for BumpAllocator {
     #[inline]
     unsafe fn dealloc(&self, _: *mut u8, _: Layout) {}
 }
+
+/// An allocator that denies dynamic memory allocations.
+#[derive(Clone, Debug)]
+pub struct DenyAllocator;
+
+unsafe impl GlobalAlloc for DenyAllocator {
+    #[inline]
+    unsafe fn alloc(&self, _: Layout) -> *mut u8 {
+        panic!("** DenyAllocator::alloc() does not allocate memory **");
+    }
+
+    #[inline]
+    unsafe fn dealloc(&self, _: *mut u8, _: Layout) {
+        // Allocations are denied, so there is nothing to free.
+    }
+}

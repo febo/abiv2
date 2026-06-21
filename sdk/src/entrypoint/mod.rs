@@ -1,6 +1,6 @@
 mod allocator;
 
-pub use allocator::BumpAllocator;
+pub use allocator::{BumpAllocator, DenyAllocator};
 use {
     crate::{account::Account, context::InstructionContext},
     solana_program_error::{ProgramError, ProgramResult},
@@ -71,45 +71,11 @@ fn program_error_to_u64(error: ProgramError) -> u64 {
     error.into()
 }
 
-/// Default global allocator.
-///
-/// This macro combines a static memory allocator with a bump allocator. It
-/// takes a list of pointer-name and type pairs, allocates them in the heap
-/// memory region at compile time, and provides accessors for them during
-/// program execution. Any remaining heap space is made available to the bump
-/// allocator.
-///
-/// The statically allocated values are defined in the `default_allocator!`
-/// macro definition:
-///
-/// ```ignore
-/// default_allocator!({
-///    buffer: [u8; 5000],
-///    counter: u64,
-///    some_other_allocation: u32,
-/// });
-/// ```
-///
-/// This makes checked accessors available under an `alloc` module:
-///   - `fn buffer() -> Result<RefMut<[u8; 5000]>, ProgramError>`
-///   - `fn counter() -> Result<RefMut<u64>, ProgramError>`
-///   - `fn some_other_allocation() -> Result<RefMut<u32>, ProgramError>`
-///
-/// The allocated values can be directly used in a program:
-/// ```ignore
-/// let buffer = crate::alloc::buffer()?;
-/// let counter = crate::alloc::counter()?;
-/// let some_other_allocation = crate::alloc::some_other_allocation()?;
-/// ```
-///
-/// If the static allocation exceeds the maximum allowed heap space, a
-/// compile-time error is generated.
+#[doc(hidden)]
 #[macro_export]
-macro_rules! default_allocator {
-    () => {
-        $crate::default_allocator!({});
-    };
-    ( { $( $ptr_name:ident : $ptr_ty:ty ),* $(,)? } ) => {
+macro_rules! __static_allocator {
+    ( { $( $ptr_name:ident : $ptr_ty:ty ),* $(,)? } => { $( $global_allocator:item )* } ) => {
+        #[allow(dead_code)]
         pub(crate) mod alloc {
             //! Static memory allocations for the program.
 
@@ -215,14 +181,7 @@ macro_rules! default_allocator {
                 }
             )*
 
-            #[cfg(any(target_os = "solana", target_arch = "bpf"))]
-            #[global_allocator]
-            static A: $crate::entrypoint::BumpAllocator = unsafe {
-                $crate::entrypoint::BumpAllocator::new_unchecked(
-                    STATIC_ALLOCATOR.start,
-                    STATIC_ALLOCATOR.len,
-                )
-            };
+            $( $global_allocator )*
 
             /// A default allocator for when the program is compiled for a target other than
             /// `"solana"` or `"bpf"`.
@@ -233,6 +192,97 @@ macro_rules! default_allocator {
                 extern crate std as __std;
             }
         }
+    };
+}
+
+/// Default global allocator.
+///
+/// This macro combines a static memory allocator with a bump allocator. It
+/// takes a list of pointer-name and type pairs, allocates them in the heap
+/// memory region at compile time, and provides accessors for them during
+/// program execution. Any remaining heap space is made available to the bump
+/// allocator.
+///
+/// The statically allocated values are defined in the `default_allocator!`
+/// macro definition:
+///
+/// ```ignore
+/// default_allocator!({
+///    buffer: [u8; 5000],
+///    counter: u64,
+///    some_other_allocation: u32,
+/// });
+/// ```
+///
+/// This makes checked accessors available under an `alloc` module:
+///   - `fn buffer() -> Result<RefMut<[u8; 5000]>, ProgramError>`
+///   - `fn counter() -> Result<RefMut<u64>, ProgramError>`
+///   - `fn some_other_allocation() -> Result<RefMut<u32>, ProgramError>`
+///
+/// The allocated values can be directly used in a program:
+/// ```ignore
+/// let buffer = crate::alloc::buffer()?;
+/// let counter = crate::alloc::counter()?;
+/// let some_other_allocation = crate::alloc::some_other_allocation()?;
+/// ```
+///
+/// If the static allocation exceeds the maximum allowed heap space, a
+/// compile-time error is generated.
+#[macro_export]
+macro_rules! default_allocator {
+    () => {
+        $crate::default_allocator!({});
+    };
+    ( { $( $ptr_name:ident : $ptr_ty:ty ),* $(,)? } ) => {
+        $crate::__static_allocator!({ $( $ptr_name : $ptr_ty ),* } => {
+            #[cfg(any(target_os = "solana", target_arch = "bpf"))]
+            #[global_allocator]
+            static A: $crate::entrypoint::BumpAllocator = unsafe {
+                $crate::entrypoint::BumpAllocator::new_unchecked(
+                    STATIC_ALLOCATOR.start,
+                    STATIC_ALLOCATOR.len,
+                )
+            };
+        });
+    };
+}
+
+/// Denying global allocator.
+///
+/// This macro defines a global allocator that denies all dynamic allocations.
+/// Any attempt to allocate through APIs such as `Vec`, `Box`, or `String` will
+/// panic.
+///
+/// Use this when a program does not need dynamic allocation, or when it manages
+/// memory through explicit static allocations.
+///
+/// Static allocations can be declared with the same syntax as
+/// `default_allocator!`:
+///
+/// ```ignore
+/// deny_allocator!({
+///    buffer: [u8; 5000],
+///    counter: u64,
+/// });
+/// ```
+///
+/// This makes checked accessors available under an `alloc` module:
+///   - `fn buffer() -> Result<RefMut<[u8; 5000]>, ProgramError>`
+///   - `fn counter() -> Result<RefMut<u64>, ProgramError>`
+///
+/// If the static allocation exceeds the maximum allowed heap space, a
+/// compile-time error is generated.
+#[macro_export]
+macro_rules! deny_allocator {
+    () => {
+        $crate::deny_allocator!({});
+    };
+    ( { $( $ptr_name:ident : $ptr_ty:ty ),* $(,)? } ) => {
+        $crate::__static_allocator!({ $( $ptr_name : $ptr_ty ),* } => {
+            #[cfg(any(target_os = "solana", target_arch = "bpf"))]
+            #[global_allocator]
+            static A: $crate::entrypoint::DenyAllocator = $crate::entrypoint::DenyAllocator;
+        });
     };
 }
 
