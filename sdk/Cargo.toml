@@ -3,6 +3,9 @@ name = "abiv2"
 version = "0.0.0"
 edition = "2021"
 
+[features]
+std = []
+
 [dependencies]
 solana-address = { workspace = true, features = ["copy"] }
 solana-program-error = { workspace = true }

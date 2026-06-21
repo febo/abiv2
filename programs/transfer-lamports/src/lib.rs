@@ -1,9 +1,10 @@
+#![no_std]
+
 use abiv2::{
-    account::Account, context::InstructionContext, error::ProgramError, program_entrypoint,
-    ProgramResult,
+    account::Account, context::InstructionContext, entrypoint, error::ProgramError, ProgramResult,
 };
 
-program_entrypoint!(process_instruction);
+entrypoint!(process_instruction);
 
 pub fn process_instruction(
     _context: &InstructionContext,
