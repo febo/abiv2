@@ -8,6 +8,7 @@ std = []
 
 [dependencies]
 solana-address = { workspace = true, features = ["copy"] }
+solana-define-syscall = "5.1.0"
 solana-program-error = { workspace = true }
 
 [dev-dependencies]

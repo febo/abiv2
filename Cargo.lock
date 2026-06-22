@@ -8,6 +8,7 @@ version = "0.0.0"
 dependencies = [
  "libc",
  "solana-address",
+ "solana-define-syscall 5.1.0",
  "solana-program-error",
 ]
 

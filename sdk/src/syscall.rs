@@ -1,11 +1,14 @@
 use solana_address::Address;
 
-pub fn abort() -> ! {
-    unsafe {
-        let syscall: extern "C" fn() -> ! = core::mem::transmute(3069975057usize);
-        syscall();
-    }
-}
+pub use solana_define_syscall::definitions::{
+    abort, sol_alt_bn128_compression, sol_alt_bn128_group_op, sol_big_mod_exp, sol_blake3,
+    sol_create_program_address, sol_curve_decompress, sol_curve_group_op,
+    sol_curve_multiscalar_mul, sol_curve_pairing_map, sol_curve_validate_point,
+    sol_get_fees_sysvar, sol_get_stack_height, sol_get_sysvar, sol_keccak256, sol_log_,
+    sol_log_64_, sol_log_compute_units_, sol_log_data, sol_log_pubkey, sol_memcmp_, sol_memcpy_,
+    sol_memmove_, sol_memset_, sol_panic_, sol_poseidon, sol_remaining_compute_units,
+    sol_secp256k1_recover, sol_sha256, sol_sha512, sol_try_find_program_address,
+};
 
 pub fn assign_owner(account_idx: u64, new_owner: *const Address) {
     unsafe {
@@ -19,21 +22,6 @@ pub fn set_buffer_length(base_address: u64, new_length: u64) -> u64 {
         let syscall: extern "C" fn(u64, u64, u64, u64, u64) -> u64 =
             core::mem::transmute(0x713026f5u64);
         syscall(base_address, new_length, 0, 0, 0)
-    }
-}
-
-pub fn sol_log_(message: *const u8, len: u64) {
-    unsafe {
-        let syscall: extern "C" fn(*const u8, u64) = core::mem::transmute(544561597u64);
-        syscall(message, len)
-    }
-}
-
-pub fn sol_panic_(filename: *const u8, filename_len: u64, line: u64, column: u64) -> ! {
-    unsafe {
-        let syscall: extern "C" fn(*const u8, u64, u64, u64) -> ! =
-            core::mem::transmute(1751159739usize);
-        syscall(filename, filename_len, line, column);
     }
 }
 
