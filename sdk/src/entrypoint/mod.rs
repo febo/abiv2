@@ -24,7 +24,7 @@ macro_rules! program_entrypoint {
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn entrypoint(
             instruction: *const $crate::context::InstructionContext,
-            accounts: *const $crate::account::Account,
+            accounts: *mut $crate::account::Account,
             accounts_len: u64,
             instruction_data: *const u8,
             instruction_data_len: u64,
@@ -32,7 +32,10 @@ macro_rules! program_entrypoint {
             unsafe {
                 $crate::entrypoint::process_entrypoint(
                     &*instruction,
-                    core::slice::from_raw_parts(accounts, accounts_len as usize),
+                    // The `accounts` pointer is readonly , but it is used as a mutable to the
+                    // program so Rust borrow checker can detect some cases where the account
+                    // data is being used when resizing it.
+                    core::slice::from_raw_parts_mut(accounts, accounts_len as usize),
                     core::slice::from_raw_parts(instruction_data, instruction_data_len as usize),
                     $process_instruction,
                 )
@@ -51,12 +54,12 @@ macro_rules! program_entrypoint {
 #[inline(always)]
 pub unsafe fn process_entrypoint<F>(
     context: &InstructionContext,
-    accounts: &[Account],
+    accounts: &mut [Account],
     instruction_data: &[u8],
     process_instruction: F,
 ) -> u64
 where
-    F: FnOnce(&InstructionContext, &[Account], &[u8]) -> ProgramResult,
+    F: FnOnce(&InstructionContext, &mut [Account], &[u8]) -> ProgramResult,
 {
     match process_instruction(context, accounts, instruction_data) {
         Ok(()) => SUCCESS,
@@ -187,6 +190,7 @@ macro_rules! __static_allocator {
             /// `"solana"` or `"bpf"`.
             ///
             /// This links the `std` library, which will set up a default global allocator.
+            #[doc(hidden)]
             #[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
             mod __private {
                 extern crate std as __std;
@@ -355,6 +359,7 @@ macro_rules! default_panic_handler {
         /// `"solana"`.
         ///
         /// This links the `std` library, which will set up a default panic handler.
+        #[doc(hidden)]
         #[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
         mod __private_panic_handler {
             extern crate std as __std;

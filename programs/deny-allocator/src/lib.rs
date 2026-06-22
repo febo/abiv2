@@ -9,7 +9,7 @@ deny_allocator!();
 
 pub fn process_instruction(
     _context: &InstructionContext,
-    accounts: &[Account],
+    accounts: &mut [Account],
     _instruction_data: &[u8],
 ) -> ProgramResult {
     let [account, ..] = accounts else {

@@ -8,7 +8,7 @@ entrypoint!(process_instruction);
 
 pub fn process_instruction(
     _context: &InstructionContext,
-    accounts: &[Account],
+    accounts: &mut [Account],
     instruction_data: &[u8],
 ) -> ProgramResult {
     let [account, ..] = accounts else {

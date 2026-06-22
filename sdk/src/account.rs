@@ -232,7 +232,7 @@ impl Account {
     }
 
     /// Resize (either truncating or zero extending) the account's data.
-    pub fn resize(&self, new_len: usize) {
+    pub fn resize(&mut self, new_len: usize) {
         set_buffer_length(
             // SAFETY: The `transaction_account` pointer is valid under
             // `Account`'s runtime memory invariants.
