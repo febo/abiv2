@@ -1,5 +1,4 @@
 use solana_address::Address;
-
 pub use solana_define_syscall::definitions::{
     abort, sol_alt_bn128_compression, sol_alt_bn128_group_op, sol_big_mod_exp, sol_blake3,
     sol_create_program_address, sol_curve_decompress, sol_curve_group_op,
