@@ -13,6 +13,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "account-data"
+version = "0.0.0"
+dependencies = [
+ "abiv2",
+]
+
+[[package]]
 name = "account-resize"
 version = "0.0.0"
 dependencies = [
