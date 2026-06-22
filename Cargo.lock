@@ -13,6 +13,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "account-borrow"
+version = "0.0.0"
+dependencies = [
+ "abiv2",
+]
+
+[[package]]
 name = "account-data"
 version = "0.0.0"
 dependencies = [
@@ -403,6 +410,7 @@ dependencies = [
  "solana-bpf-loader-program",
  "solana-instruction",
  "solana-logger",
+ "solana-program-error",
  "solana-rent",
  "solana-sdk-ids",
  "solana-transaction-context",

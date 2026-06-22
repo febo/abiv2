@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "benchmark",
+    "programs/account-borrow",
     "programs/account-data",
     "programs/account-resize",
     "programs/assign-owner",
