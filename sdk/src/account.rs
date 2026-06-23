@@ -28,7 +28,7 @@ use {
 ///   first `4096` bytes must be reserved for account borrow flags.
 pub struct Account {
     /// The index of the account in the transaction's account list.
-    pub transaction_index: u16,
+    transaction_index: u16,
 
     /// Signer flag for this instruction.
     ///
@@ -220,6 +220,11 @@ impl Account {
                 && read_volatile(owner_ptr.add(2)) == read_unaligned(program_ptr.add(2))
                 && read_volatile(owner_ptr.add(3)) == read_unaligned(program_ptr.add(3))
         }
+    }
+
+    /// Return the index of the account in the transaction.
+    pub const fn transaction_index(&self) -> u16 {
+        self.transaction_index
     }
 
     /// Transfer lamports to another account.
