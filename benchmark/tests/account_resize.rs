@@ -6,7 +6,13 @@ use {
     solana_account::Account,
     solana_address::Address,
     solana_instruction::{error::InstructionError, AccountMeta, Instruction},
+    solana_program_error::ProgramError,
 };
+
+// Maximum account data length.
+//
+// https://github.com/anza-xyz/agave/blob/master/transaction-context/src/lib.rs#L19
+const MAX_ACCOUNT_DATA_LEN: usize = 10 * 1024 * 1024;
 
 fn instruction(
     program_id: &Address,
@@ -71,11 +77,6 @@ fn fail_account_resize_with_readonly_account() {
 
 #[test]
 fn test_account_resize_max_data_len() {
-    // Maximum account data length.
-    //
-    // https://github.com/anza-xyz/agave/blob/master/transaction-context/src/lib.rs#L19
-    const MAX_ACCOUNT_DATA_LEN: usize = 10 * 1024 * 1024;
-
     let mollusk = setup(&PROGRAM_ID, "account_resize");
     let (instruction, accounts) = instruction(&PROGRAM_ID, MAX_ACCOUNT_DATA_LEN, true);
 
@@ -84,7 +85,21 @@ fn test_account_resize_max_data_len() {
     let account = result.get_account(&key);
     assert!(account.is_some());
 
-    // The account data length should have increased.
+    // The account data length should have increased to `MAX_ACCOUNT_DATA_LEN`.
 
     assert_eq!(account.unwrap().data.len(), MAX_ACCOUNT_DATA_LEN);
+}
+
+#[test]
+fn fail_account_resize_over_max_data_len() {
+    let mollusk = setup(&PROGRAM_ID, "account_resize");
+    // Going 1 byte over the limit.
+    let (instruction, accounts) = instruction(&PROGRAM_ID, MAX_ACCOUNT_DATA_LEN + 1, true);
+
+    run(
+        &mollusk,
+        &instruction,
+        &accounts,
+        &[Check::err(ProgramError::InvalidRealloc)],
+    );
 }
