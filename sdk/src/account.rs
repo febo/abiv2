@@ -12,10 +12,13 @@ use {
     solana_program_error::ProgramError,
 };
 
+/// Mask to query the signer byte.
 const SIGNER_MASK: u32 = 1u32 << 16;
 
+/// Mask to query the writable byte.
 const WRITABLE_MASK: u32 = 1u32 << 24;
 
+/// Mask to query both writable and signer bytes.
 const WRITABLE_SIGNER_MASK: u32 = WRITABLE_MASK | SIGNER_MASK;
 
 /// Instruction-facing view of a transaction account.
@@ -33,25 +36,8 @@ const WRITABLE_SIGNER_MASK: u32 = WRITABLE_MASK | SIGNER_MASK;
 /// - The [`HEAP_ADDRESS`] memory region must be available at runtime, and its
 ///   first `4096` bytes must be reserved for account borrow flags.
 #[repr(transparent)]
+#[derive(Clone, Copy, Debug)]
 pub struct Account(u32);
-
-/*
-#[repr(C)]
-pub struct Account {
-    /// The index of the account in the transaction's account list.
-    transaction_index: u16,
-
-    /// Signer flag for this instruction.
-    ///
-    /// Nonzero when the account is a signer in the instruction.
-    signer: u8,
-
-    /// Writable flag for this instruction.
-    ///
-    /// Nonzero when the account can be modified by the instruction.
-    writable: u8,
-}
-    */
 
 // ABI layout expected by the runtime for `Account`.
 const _: () = {
@@ -60,28 +46,38 @@ const _: () = {
 };
 
 impl Account {
+    /// Create an account from its transaction index and instruction flags.
     #[inline(always)]
     pub const fn new(transaction_index: u16, is_signer: bool, is_writable: bool) -> Self {
+        // Keep the bit layout aligned with `SIGNER_MASK` and `WRITABLE_MASK`.
         Self(transaction_index as u32 | ((is_signer as u32) << 16) | ((is_writable as u32) << 24))
     }
 
+    /// Create a read-only, non-signer account for the transaction index.
     #[inline(always)]
     pub const fn readonly(transaction_index: u16) -> Self {
+        // No flags are set for a read-only, non-signer account.
         Self(transaction_index as u32)
     }
 
+    /// Create a read-only signer account for the transaction index.
     #[inline(always)]
     pub const fn readonly_signer(transaction_index: u16) -> Self {
+        // Set the signer bit while leaving the writable bit clear.
         Self(transaction_index as u32 | SIGNER_MASK)
     }
 
+    /// Create a writable, non-signer account for the transaction index.
     #[inline(always)]
     pub const fn writable(transaction_index: u16) -> Self {
+        // Set the writable bit while leaving the signer bit clear.
         Self(transaction_index as u32 | WRITABLE_MASK)
     }
 
+    /// Create a writable signer account for the transaction index.
     #[inline(always)]
     pub const fn writable_signer(transaction_index: u16) -> Self {
+        // Set both access flags using the precomputed combined mask.
         Self(transaction_index as u32 | WRITABLE_SIGNER_MASK)
     }
 
@@ -94,14 +90,15 @@ impl Account {
     /// Return `true` if the account signed the instruction.
     #[inline(always)]
     pub const fn is_signer(&self) -> bool {
-        ((self.0 >> 16) & 0xff) != 0
+        (self.0 & SIGNER_MASK) != 0
     }
 
     /// Return `true` if the account can be modified by the instruction.
     #[inline(always)]
     pub const fn is_writable(&self) -> bool {
-        ((self.0 >> 24) & 0xff) != 0
+        (self.0 & WRITABLE_MASK) != 0
     }
+
     /// Return a pointer to the corresponding transaction account metadata.
     ///
     /// # Safety
@@ -480,11 +477,7 @@ mod tests {
             data,
         }]);
 
-        let view = Account {
-            transaction_index: 0,
-            signer: 1,
-            writable: 1,
-        };
+        let view = Account::writable_signer(0);
 
         assert_eq!(view.address(), &address);
         assert_eq!(view.owner(), owner);
