@@ -2,13 +2,18 @@ mod setup;
 
 use {
     crate::setup::{run, setup, BASE_LAMPORTS, PROGRAM_ID},
-    mollusk_svm::{program::keyed_account_for_system_program, result::Check},
+    mollusk_svm::{
+        program::{create_program_account_loader_v3, keyed_account_for_system_program},
+        result::Check,
+    },
     solana_account::Account,
     solana_address::Address,
     solana_instruction::{AccountMeta, Instruction},
 };
 
-fn instruction(program_id: &Address) -> (Instruction, Vec<(Address, Account)>) {
+const TRACE_PROGRAM_ID: Address = Address::new_from_array([4; 32]);
+
+fn instruction_system_program(program_id: &Address) -> (Instruction, Vec<(Address, Account)>) {
     let from = Address::new_unique();
     let to = Address::new_unique();
 
@@ -43,16 +48,40 @@ fn instruction(program_id: &Address) -> (Instruction, Vec<(Address, Account)>) {
         Instruction {
             program_id: *program_id,
             accounts: account_metas,
-            data: vec![],
+            data: vec![0],
+        },
+        accounts,
+    )
+}
+
+fn instruction_trace(program_id: &Address) -> (Instruction, Vec<(Address, Account)>) {
+    let (trace_program, trace_program_account) = (
+        TRACE_PROGRAM_ID,
+        create_program_account_loader_v3(&TRACE_PROGRAM_ID),
+    );
+
+    let accounts = vec![(trace_program, trace_program_account)];
+
+    let account_metas = vec![AccountMeta {
+        pubkey: trace_program,
+        is_signer: false,
+        is_writable: false,
+    }];
+
+    (
+        Instruction {
+            program_id: *program_id,
+            accounts: account_metas,
+            data: vec![1],
         },
         accounts,
     )
 }
 
 #[test]
-fn test_cpi() {
+fn test_native_cpi() {
     let mollusk = setup(&PROGRAM_ID, "cpi");
-    let (instruction, accounts) = instruction(&PROGRAM_ID);
+    let (instruction, accounts) = instruction_system_program(&PROGRAM_ID);
 
     let (_, result) = run(&mollusk, &instruction, &accounts, &[Check::success()]);
 
@@ -69,4 +98,14 @@ fn test_cpi() {
     assert_eq!(to.lamports, BASE_LAMPORTS / 2);
     assert_eq!(to.data.len(), 100);
     assert_eq!(to.owner, PROGRAM_ID);
+}
+
+#[test]
+fn test_abiv2_cpi() {
+    let mut mollusk = setup(&PROGRAM_ID, "cpi");
+    mollusk.add_program(&TRACE_PROGRAM_ID, "trace");
+
+    let (instruction, accounts) = instruction_trace(&PROGRAM_ID);
+
+    run(&mollusk, &instruction, &accounts, &[Check::success()]);
 }

@@ -15,6 +15,36 @@ use abiv2::{
 
 entrypoint!(process_instruction);
 
+pub fn process_instruction(
+    context: &InstructionContext,
+    accounts: &mut [Account],
+    instruction_data: &[u8],
+) -> ProgramResult {
+    match instruction_data.first() {
+        Some(&0) => {
+            let [from, to, system_program, ..] = accounts else {
+                return Err(ProgramError::NotEnoughAccountKeys);
+            };
+            CreateAccount {
+                from,
+                to,
+                system_program,
+                lamports: 1_000_000_000,
+                space: 100,
+                owner: &context.program().address,
+            }
+            .invoke()
+        }
+        Some(&1) => {
+            let [trace_program, ..] = accounts else {
+                return Err(ProgramError::NotEnoughAccountKeys);
+            };
+            Trace { trace_program }.invoke()
+        }
+        _ => Err(ProgramError::InvalidInstructionData),
+    }
+}
+
 /// Create a new account.
 ///
 /// Accounts expected by this instruction:
@@ -109,22 +139,17 @@ impl<CpiAccount: AsRef<Account>> CreateAccount<'_, CpiAccount> {
     }
 }
 
-pub fn process_instruction(
-    context: &InstructionContext,
-    accounts: &mut [Account],
-    _instruction_data: &[u8],
-) -> ProgramResult {
-    let [from, to, system_program, ..] = accounts else {
-        return Err(ProgramError::NotEnoughAccountKeys);
-    };
+/// Logs instruction and transacrion information.
+pub struct Trace<CpiAccount: AsRef<Account>> {
+    /// Callee program account.
+    pub trace_program: CpiAccount,
+}
 
-    CreateAccount {
-        from,
-        to,
-        system_program,
-        lamports: 1_000_000_000,
-        space: 100,
-        owner: &context.program().address,
+impl<CpiAccount: AsRef<Account>> Trace<CpiAccount> {
+    #[inline(always)]
+    pub fn invoke(&self) -> ProgramResult {
+        sol_invoke(self.trace_program.as_ref().transaction_index() as u64, 0, 0);
+
+        Ok(())
     }
-    .invoke()
 }
