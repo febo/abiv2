@@ -33,7 +33,7 @@ pub(crate) const TRANSACTION_METADATA_ADDRESS: usize = 0x400000000usize;
 ///
 /// The address corresponds to a [`TransactionContext`] value with metadata of the
 /// executing transaction. Programs have read-only access to this region.
-pub(crate) const TRANSACTION_CONTEXT_ADDRESS: usize = 0x400000040usize;
+pub(crate) const TRANSACTION_CONTEXT_ADDRESS: usize = TRANSACTION_METADATA_ADDRESS + 0x50usize;
 
 /// The instruction execution context provided by the runtime.
 #[repr(C)]
