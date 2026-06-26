@@ -1,10 +1,11 @@
-use core::{marker::PhantomData, ops::Deref, slice::from_raw_parts};
+use core::{marker::PhantomData, ops::Deref, ptr::NonNull, slice::from_raw_parts};
 
 use solana_address::Address;
+use solana_program_error::ProgramError;
 
 use crate::{
     account::Account, context::TRANSACTION_METADATA_ADDRESS, syscall::set_buffer_length,
-    MemoryMapping, Volatile,
+    MemoryMapping, RefMut, Volatile, HEAP_ADDRESS, MUTABLY_BORROWED, NOT_BORROWED,
 };
 
 /// Address of the runtime-managed CPI invoke parameters scratch pad.
@@ -13,6 +14,9 @@ use crate::{
 /// syscall is used to specify its length and gain mutable access. This region
 /// is used to write the parameters for a cross-program invocation.
 pub(crate) const CPI_PARAMETERS_ADDRESS: usize = TRANSACTION_METADATA_ADDRESS + 0x30usize;
+
+/// Index of the borrow flag for the CPI invoke paramters.
+const BORROW_FLAG_INDEX: usize = 4088;
 
 /// Runtime scratch area for CPI invocation parameters.
 #[repr(C)]
@@ -24,17 +28,60 @@ pub struct Parameters {
     accounts: MemoryMapping<Account>,
 }
 
-// Layout expected by the runtime for `CpiInvokeParams`.
+// Layout expected by the runtime for `Parameters`.
 const _: () = {
     assert!(align_of::<Parameters>() == 8);
     assert!(size_of::<Parameters>() == 32);
 };
 
 impl Parameters {
-    /// Return a mutable reference to the CPI invoke parameters.
+    /// Return a pointer to this account's borrow-state byte.
     ///
-    /// Programs should use this to prepare the parameters for a cross-program invocation.
-    pub fn for_invocation(accounts_len: usize, data_len: usize) -> &'static mut Parameters {
+    /// # Safety
+    ///
+    /// The returned pointer may only be dereferenced when the runtime has
+    /// reserved account borrow flags.
+    #[inline(always)]
+    unsafe fn borrow_state() -> *mut u8 {
+        (HEAP_ADDRESS + BORROW_FLAG_INDEX) as *mut u8
+    }
+
+    pub fn for_invocation(
+        accounts_len: usize,
+        data_len: usize,
+    ) -> Result<RefMut<'static, Self>, ProgramError> {
+        unsafe {
+            let borrow_state = Self::borrow_state();
+
+            if *borrow_state != NOT_BORROWED {
+                return Err(ProgramError::Immutable);
+            }
+
+            *borrow_state = MUTABLY_BORROWED;
+
+            Ok(RefMut {
+                value: NonNull::from(Self::for_invocation_unchecked(accounts_len, data_len)),
+                state: NonNull::new_unchecked(borrow_state),
+                marker: PhantomData,
+            })
+        }
+    }
+
+    /// Returns the runtime scratch parameters for a cross-program invocation.
+    ///
+    /// This resizes the instructiondata and accounts scratch pads and
+    /// returns a mutable reference to the fixed runtime-managed parameters region.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that no other reference to the parameters region is
+    /// alive while the returned mutable reference is used. Calling this function
+    /// again before the returned reference is no longer used can create aliasing
+    /// mutable references and cause undefined behavior.
+    pub unsafe fn for_invocation_unchecked(
+        accounts_len: usize,
+        data_len: usize,
+    ) -> &'static mut Parameters {
         let parameters = unsafe { &mut *(CPI_PARAMETERS_ADDRESS as *mut Parameters) };
 
         set_buffer_length(

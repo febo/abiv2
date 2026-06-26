@@ -61,7 +61,7 @@ impl<CpiAccount: AsRef<Account>> CreateAccount<'_, CpiAccount> {
             return Err(ProgramError::AccountBorrowFailed);
         }
 
-        let parameters = Parameters::for_invocation(2, 52);
+        let mut parameters = Parameters::for_invocation(2, 52)?;
 
         // Accounts.
         let accounts = parameters.accounts_mut();
