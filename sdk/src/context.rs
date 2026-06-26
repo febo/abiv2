@@ -1,10 +1,9 @@
 use {
     crate::{
         account::{Account, TransactionAccount},
-        MemoryMapping, Volatile,
+        Volatile,
     },
     core::slice::from_raw_parts,
-    solana_address::Address,
 };
 
 /// Address of the runtime-managed instruction region.
@@ -14,6 +13,12 @@ use {
 /// access to this region.
 pub(crate) const INSTRUCTION_ADDRESS: usize = 0x600000000usize;
 
+/// Address of the runtime-managed return data scratch pad.
+///
+/// Progarms have a read-only access to this region, unless the `set_buffer_length`
+/// syscall is used to specify its length and gain mutable access.
+pub const RETURN_DATA_ADDRESS: usize = TRANSACTION_METADATA_ADDRESS;
+
 /// Address of the runtime-managed transaction accounts memory region.
 ///
 /// The region contains a contiguous array of [`TransactionAccount`] values.
@@ -21,11 +26,14 @@ pub(crate) const INSTRUCTION_ADDRESS: usize = 0x600000000usize;
 /// read-only access to this region.
 pub(crate) const TRANSACTION_ACCOUNTS_ADDRESS: usize = 0x500000000usize;
 
-/// Address of the runtime-managed transaction context memory region.
+/// Address of the runtime-managed transaction metadata memory region.
+pub(crate) const TRANSACTION_METADATA_ADDRESS: usize = 0x400000000usize;
+
+/// Address of the transaction context data.
 ///
-/// The region contains a [`TransactionContext`] value with metadata of the
+/// The address corresponds to a [`TransactionContext`] value with metadata of the
 /// executing transaction. Programs have read-only access to this region.
-pub(crate) const TRANSACTION_CONTEXT_ADDRESS: usize = 0x400000000usize;
+pub(crate) const TRANSACTION_CONTEXT_ADDRESS: usize = 0x400000040usize;
 
 /// The instruction execution context provided by the runtime.
 #[repr(C)]
@@ -97,17 +105,20 @@ impl InstructionContext {
             None
         }
     }
+
+    #[inline(always)]
+    pub fn program(&self) -> &'static TransactionAccount {
+        unsafe {
+            &*((TRANSACTION_ACCOUNTS_ADDRESS
+                + (self.program_account_index as usize * size_of::<TransactionAccount>()))
+                as *const _)
+        }
+    }
 }
 
 /// The transaction execution context provided by the runtime.
 #[repr(C)]
 pub struct TransactionContext {
-    /// Memory space for the return data.
-    return_data: ReturnData,
-
-    /// Memory space for CPI invoke parameters.
-    cpi_invoke_params: CpiInvokeParams,
-
     /// Index of the currently executing instruction.
     pub current_instruction_index: u16,
 
@@ -128,8 +139,8 @@ pub struct TransactionContext {
 
 // Layout expected by the runtime for `TransactionContext`.
 const _: () = {
-    assert!(align_of::<TransactionContext>() == 8);
-    assert!(size_of::<TransactionContext>() == 88);
+    assert!(align_of::<TransactionContext>() == 2);
+    assert!(size_of::<TransactionContext>() == 8);
 };
 
 impl TransactionContext {
@@ -183,63 +194,5 @@ impl TransactionContext {
     /// The fee payer is always the first account in the transaction.
     pub const fn payer() -> &'static TransactionAccount {
         unsafe { &*(TRANSACTION_ACCOUNTS_ADDRESS as *const _) }
-    }
-}
-
-/// Runtime return-data state.
-#[repr(C)]
-pub struct ReturnData {
-    /// Address of the program that last wrote data to the scratchpad.
-    program: Volatile<Address>,
-
-    /// Return-data bytes.
-    data: MemoryMapping<u8>,
-}
-
-// Layout expected by the runtime for `ReturnData`.
-const _: () = {
-    assert!(align_of::<ReturnData>() == 8);
-    assert!(size_of::<ReturnData>() == 48);
-};
-
-impl ReturnData {
-    /// Return the current return-data bytes.
-    #[inline(always)]
-    pub fn as_slice(&self) -> &[u8] {
-        self.data.as_slice()
-    }
-
-    /// Return the program that last wrote return data.
-    #[inline(always)]
-    pub fn program(&self) -> Address {
-        self.program.get()
-    }
-}
-
-/// Runtime scratch area for CPI invocation parameters.
-#[repr(C)]
-pub struct CpiInvokeParams {
-    /// Accounts passed to the CPI being invoked.
-    accounts: MemoryMapping<Account>,
-
-    /// Instruction data passed to the CPI being invoked.
-    instruction_data: MemoryMapping<u8>,
-}
-
-// Layout expected by the runtime for `CpiInvokeParams`.
-const _: () = {
-    assert!(align_of::<CpiInvokeParams>() == 8);
-    assert!(size_of::<CpiInvokeParams>() == 32);
-};
-
-impl CpiInvokeParams {
-    /// Return the accounts passed to the CPI being invoked.
-    pub fn accounts(&self) -> &[Account] {
-        self.accounts.as_slice()
-    }
-
-    /// Return the instruction data passed to the CPI being invoked.
-    pub fn instruction_data(&self) -> &[u8] {
-        self.instruction_data.as_slice()
     }
 }

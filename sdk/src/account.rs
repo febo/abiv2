@@ -12,6 +12,12 @@ use {
     solana_program_error::ProgramError,
 };
 
+const SIGNER_MASK: u32 = 1u32 << 16;
+
+const WRITABLE_MASK: u32 = 1u32 << 24;
+
+const WRITABLE_SIGNER_MASK: u32 = WRITABLE_MASK | SIGNER_MASK;
+
 /// Instruction-facing view of a transaction account.
 ///
 /// `Account` stores the account's transaction index plus the access flags
@@ -26,6 +32,11 @@ use {
 ///   runtime.
 /// - The [`HEAP_ADDRESS`] memory region must be available at runtime, and its
 ///   first `4096` bytes must be reserved for account borrow flags.
+#[repr(transparent)]
+pub struct Account(u32);
+
+/*
+#[repr(C)]
 pub struct Account {
     /// The index of the account in the transaction's account list.
     transaction_index: u16,
@@ -40,14 +51,57 @@ pub struct Account {
     /// Nonzero when the account can be modified by the instruction.
     writable: u8,
 }
+    */
 
 // ABI layout expected by the runtime for `Account`.
 const _: () = {
-    assert!(align_of::<Account>() == 2);
+    assert!(align_of::<Account>() == 4);
     assert!(size_of::<Account>() == 4);
 };
 
 impl Account {
+    #[inline(always)]
+    pub const fn new(transaction_index: u16, is_signer: bool, is_writable: bool) -> Self {
+        Self(transaction_index as u32 | ((is_signer as u32) << 16) | ((is_writable as u32) << 24))
+    }
+
+    #[inline(always)]
+    pub const fn readonly(transaction_index: u16) -> Self {
+        Self(transaction_index as u32)
+    }
+
+    #[inline(always)]
+    pub const fn readonly_signer(transaction_index: u16) -> Self {
+        Self(transaction_index as u32 | SIGNER_MASK)
+    }
+
+    #[inline(always)]
+    pub const fn writable(transaction_index: u16) -> Self {
+        Self(transaction_index as u32 | WRITABLE_MASK)
+    }
+
+    #[inline(always)]
+    pub const fn writable_signer(transaction_index: u16) -> Self {
+        Self(transaction_index as u32 | WRITABLE_SIGNER_MASK)
+    }
+
+    /// Return the index of the account in the transaction.
+    #[inline(always)]
+    pub const fn transaction_index(&self) -> u16 {
+        self.0 as u16
+    }
+
+    /// Return `true` if the account signed the instruction.
+    #[inline(always)]
+    pub const fn is_signer(&self) -> bool {
+        ((self.0 >> 16) & 0xff) != 0
+    }
+
+    /// Return `true` if the account can be modified by the instruction.
+    #[inline(always)]
+    pub const fn is_writable(&self) -> bool {
+        ((self.0 >> 24) & 0xff) != 0
+    }
     /// Return a pointer to the corresponding transaction account metadata.
     ///
     /// # Safety
@@ -57,7 +111,7 @@ impl Account {
     #[inline(always)]
     unsafe fn transaction_account(&self) -> *const TransactionAccount {
         (TRANSACTION_ACCOUNTS_ADDRESS
-            + (self.transaction_index as usize * size_of::<TransactionAccount>()))
+            + (self.transaction_index() as usize * size_of::<TransactionAccount>()))
             as *const TransactionAccount
     }
 
@@ -69,7 +123,7 @@ impl Account {
     /// reserved account borrow flags.
     #[inline(always)]
     unsafe fn borrow_state(&self) -> *mut u8 {
-        (HEAP_ADDRESS + self.transaction_index as usize) as *mut u8
+        (HEAP_ADDRESS + self.transaction_index() as usize) as *mut u8
     }
 
     /// Return the address of the account.
@@ -81,7 +135,7 @@ impl Account {
     }
 
     pub fn assign(&self, program: &Address) {
-        assign_owner(self.transaction_index as u64, program);
+        assign_owner(self.transaction_index() as u64, program);
     }
 
     /// Return an immutable reference to the data in the account.
@@ -175,18 +229,6 @@ impl Account {
         unsafe { *self.borrow_state() == MUTABLY_BORROWED }
     }
 
-    /// Return `true` if the account signed the instruction.
-    #[inline(always)]
-    pub fn is_signer(&self) -> bool {
-        self.signer != 0
-    }
-
-    /// Return `true` if the account can be modified by the instruction.
-    #[inline(always)]
-    pub fn is_writable(&self) -> bool {
-        self.writable != 0
-    }
-
     /// Return the account lamport balance.
     #[inline(always)]
     pub fn lamports(&self) -> u64 {
@@ -222,16 +264,11 @@ impl Account {
         }
     }
 
-    /// Return the index of the account in the transaction.
-    pub const fn transaction_index(&self) -> u16 {
-        self.transaction_index
-    }
-
     /// Transfer lamports to another account.
     pub fn transfer_lamports(&self, destination: &Account, lamports: u64) {
         sol_transfer_lamports(
-            destination.transaction_index as u64,
-            self.transaction_index as u64,
+            destination.transaction_index() as u64,
+            self.transaction_index() as u64,
             lamports,
         );
     }

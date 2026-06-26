@@ -20,6 +20,7 @@ pub use {
 
 pub mod account;
 pub mod context;
+pub mod cpi;
 pub mod entrypoint;
 pub mod syscall;
 
