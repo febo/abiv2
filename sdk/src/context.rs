@@ -1,3 +1,8 @@
+//! Runtime-mapped transaction and instruction context.
+//!
+//! The runtime exposes transaction and instruction metadata via
+//! [`TransactionContext`] and [`InstructionContext`].
+
 use {
     crate::{
         account::{Account, TransactionAccount},
@@ -15,7 +20,7 @@ pub(crate) const INSTRUCTION_ADDRESS: usize = 0x600000000usize;
 
 /// Address of the runtime-managed return data scratch pad.
 ///
-/// Progarms have a read-only access to this region, unless the `set_buffer_length`
+/// Programs have read-only access to this region, unless the `set_buffer_length`
 /// syscall is used to specify its length and gain mutable access.
 pub const RETURN_DATA_ADDRESS: usize = TRANSACTION_METADATA_ADDRESS;
 
@@ -31,8 +36,8 @@ pub(crate) const TRANSACTION_METADATA_ADDRESS: usize = 0x400000000usize;
 
 /// Address of the transaction context data.
 ///
-/// The address corresponds to a [`TransactionContext`] value with metadata of the
-/// executing transaction. Programs have read-only access to this region.
+/// The address corresponds to a [`TransactionContext`] value for the executing
+/// transaction. Programs have read-only access to this region.
 pub(crate) const TRANSACTION_CONTEXT_ADDRESS: usize = TRANSACTION_METADATA_ADDRESS + 0x50usize;
 
 /// The instruction execution context provided by the runtime.
@@ -75,27 +80,31 @@ impl InstructionContext {
     /// Return the accounts passed to this instruction.
     #[inline(always)]
     pub fn accounts(&self) -> &[Account] {
+        // SAFETY: The runtime provides `accounts_ptr` and `accounts_len` as a
+        // valid account slice for this instruction.
         unsafe { from_raw_parts(self.accounts_ptr, self.accounts_len as usize) }
     }
 
     /// Return the instruction data bytes.
     #[inline(always)]
     pub fn data(&self) -> &[u8] {
+        // SAFETY: The runtime provides `data_ptr` and `data_len` as a valid
+        // byte slice for this instruction.
         unsafe { from_raw_parts(self.data_ptr, self.data_len as usize) }
     }
 
     /// Return `true` if the instruction has a parent instruction.
-    ///
-    /// Top-level instructions do not have a parent instruction.
     #[inline(always)]
     pub const fn has_parent(&self) -> bool {
         self.parent_instruction_index != u16::MAX
     }
 
-    /// Return the index of the parent instruction if there is one.
+    /// Return the parent instruction if there is one.
     #[inline(always)]
     pub const fn parent(&self) -> Option<&'static InstructionContext> {
         if self.has_parent() {
+            // SAFETY: The runtime maps instruction metadata at
+            // [`INSTRUCTION_ADDRESS`].
             Some(unsafe {
                 &*((INSTRUCTION_ADDRESS
                     + (self.parent_instruction_index as usize * size_of::<InstructionContext>()))
@@ -106,8 +115,11 @@ impl InstructionContext {
         }
     }
 
+    /// Return the transaction account for the executing program.
     #[inline(always)]
-    pub fn program(&self) -> &'static TransactionAccount {
+    pub const fn program(&self) -> &'static TransactionAccount {
+        // SAFETY: The runtime maps transaction account metadata at
+        // [`TRANSACTION_ACCOUNTS_ADDRESS`].
         unsafe {
             &*((TRANSACTION_ACCOUNTS_ADDRESS
                 + (self.program_account_index as usize * size_of::<TransactionAccount>()))
@@ -146,11 +158,15 @@ const _: () = {
 impl TransactionContext {
     /// Return the transaction execution context.
     pub const fn get() -> &'static Self {
+        // SAFETY: The runtime maps a `TransactionContext` at this fixed
+        // transaction context address.
         unsafe { &*(TRANSACTION_CONTEXT_ADDRESS as *const _) }
     }
 
     /// Return all accounts in the transaction.
     pub fn accounts(&self) -> &[TransactionAccount] {
+        // SAFETY: The runtime maps transaction account metadata at
+        // [`TRANSACTION_ACCOUNTS_ADDRESS`].
         unsafe {
             from_raw_parts(
                 TRANSACTION_ACCOUNTS_ADDRESS as _,
@@ -168,6 +184,8 @@ impl TransactionContext {
 
     /// Return the instruction currently being executed.
     pub fn current_instruction(&self) -> &InstructionContext {
+        // SAFETY: The runtime maps instruction metadata at
+        // [`INSTRUCTION_ADDRESS`].
         unsafe {
             &*((INSTRUCTION_ADDRESS
                 + (self.current_instruction_index as usize * size_of::<InstructionContext>()))
@@ -186,6 +204,8 @@ impl TransactionContext {
     ///
     /// This list is updated by the runtime as CPIs are executed.
     pub fn instructions(&self) -> &[InstructionContext] {
+        // SAFETY: The runtime maps instruction metadata at
+        // [`INSTRUCTION_ADDRESS`].
         unsafe { from_raw_parts(INSTRUCTION_ADDRESS as _, self.instruction_count() as usize) }
     }
 
@@ -193,6 +213,8 @@ impl TransactionContext {
     ///
     /// The fee payer is always the first account in the transaction.
     pub const fn payer() -> &'static TransactionAccount {
+        // SAFETY: The runtime maps transaction account metadata at
+        // [`TRANSACTION_ACCOUNTS_ADDRESS`].
         unsafe { &*(TRANSACTION_ACCOUNTS_ADDRESS as *const _) }
     }
 }
