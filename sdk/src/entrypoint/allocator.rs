@@ -65,7 +65,7 @@ unsafe impl GlobalAlloc for BumpAllocator {
     /// # Safety
     ///
     /// `layout` must have non-zero size. Attempting to allocate for a
-    /// zero-sized layout will result in undefined behavior.
+    /// zero-sized layout will result in undefined behaviour.
     #[inline]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         // Reads the current position of the heap pointer.

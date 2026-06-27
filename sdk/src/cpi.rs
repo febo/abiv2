@@ -1,24 +1,36 @@
-use core::{marker::PhantomData, ops::Deref, ptr::NonNull, slice::from_raw_parts};
+//! Types for cross-program invocation.
+//!
+//! Programs passed parameters to cross-program invocation by writing
+//! them at a pre-defined scratchpad memory area. Similarly, programs
+//! can read and write return data from a pre-defined scratchpad area
+//! reserved for return data.
 
-use solana_address::Address;
-use solana_program_error::ProgramError;
-
-use crate::{
-    account::Account, context::TRANSACTION_METADATA_ADDRESS, syscall::set_buffer_length,
-    MemoryMapping, RefMut, Volatile, HEAP_ADDRESS, MUTABLY_BORROWED, NOT_BORROWED,
+use {
+    crate::{
+        account::Account, context::TRANSACTION_METADATA_ADDRESS, syscall::set_buffer_length,
+        MemoryMapping, RefMut, Volatile, HEAP_ADDRESS, MUTABLY_BORROWED, NOT_BORROWED,
+    },
+    core::{
+        marker::PhantomData,
+        ops::Deref,
+        ptr::{read_unaligned, read_volatile, NonNull},
+        slice::from_raw_parts,
+    },
+    solana_address::Address,
+    solana_program_error::ProgramError,
 };
 
-/// Address of the runtime-managed CPI invoke parameters scratch pad.
+/// Address of the runtime-managed CPI invoke parameters scratchpad.
 ///
 /// Programs have a read-only access to this region, unless the `set_buffer_length`
 /// syscall is used to specify its length and gain mutable access. This region
 /// is used to write the parameters for a cross-program invocation.
 pub(crate) const CPI_PARAMETERS_ADDRESS: usize = TRANSACTION_METADATA_ADDRESS + 0x30usize;
 
-/// Index of the borrow flag for the CPI invoke paramters.
+/// Index of the borrow flag for the CPI invoke parameters.
 const BORROW_FLAG_INDEX: usize = 4088;
 
-/// Runtime scratch area for CPI invocation parameters.
+/// Runtime scratchpad area for writing CPI invocation parameters.
 #[repr(C)]
 pub struct Parameters {
     /// Instruction data passed to the CPI being invoked.
@@ -35,17 +47,21 @@ const _: () = {
 };
 
 impl Parameters {
-    /// Return a pointer to this account's borrow-state byte.
+    /// Return a pointer to the parameter's borrow-state byte.
     ///
     /// # Safety
     ///
     /// The returned pointer may only be dereferenced when the runtime has
-    /// reserved account borrow flags.
+    /// reserved borrow flags.
     #[inline(always)]
     unsafe fn borrow_state() -> *mut u8 {
         (HEAP_ADDRESS + BORROW_FLAG_INDEX) as *mut u8
     }
 
+    /// Returns the runtime scratchpad area parameters for a cross-program invocation.
+    ///
+    /// This resizes the instruction data and accounts scratchpads and
+    /// returns a mutable reference to the fixed runtime-managed parameters region.
     pub fn for_invocation(
         accounts_len: usize,
         data_len: usize,
@@ -67,17 +83,19 @@ impl Parameters {
         }
     }
 
-    /// Returns the runtime scratch parameters for a cross-program invocation.
+    /// Returns the runtime scratchpad area parameters for a cross-program invocation.
     ///
-    /// This resizes the instructiondata and accounts scratch pads and
-    /// returns a mutable reference to the fixed runtime-managed parameters region.
+    /// This resizes the instruction data and accounts scratchpads and returns a mutable
+    /// reference to the fixed runtime-managed parameters region.
+    ///
+    /// It behaves similarly to [`Self::for_invocation`] but does not track borrows.
     ///
     /// # Safety
     ///
     /// The caller must ensure that no other reference to the parameters region is
-    /// alive while the returned mutable reference is used. Calling this function
-    /// again before the returned reference is no longer used can create aliasing
-    /// mutable references and cause undefined behavior.
+    /// active while the returned mutable reference is used. Calling this function
+    /// again before a previously returned reference is no longer used violates Rust
+    /// aliasing rules regarding mutable references and cause undefined behaviour.
     pub unsafe fn for_invocation_unchecked(
         accounts_len: usize,
         data_len: usize,
@@ -113,6 +131,9 @@ impl Parameters {
     }
 
     /// Return a mutable instruction data slice for a CPI.
+    ///
+    /// This slice is used by programs to prepare the instruction data to
+    /// be passed to a CPI.
     pub fn instruction_data_mut(&mut self) -> &mut [u8] {
         unsafe { self.instruction_data.as_mut_slice() }
     }
@@ -141,10 +162,27 @@ impl ReturnData {
         self.data.as_slice()
     }
 
-    /// Return the program that last wrote return data.
+    /// Return the address of the program that last wrote return data.
     #[inline(always)]
     pub fn program(&self) -> Address {
         self.program.get()
+    }
+
+    /// Return `true` if the return data was written by `program`.
+    #[inline(always)]
+    pub fn written_by(&self, program: &Address) -> bool {
+        let address_ptr = &raw const self.program as *const u64;
+        let program_ptr = program.as_array().as_ptr() as *const u64;
+
+        // SAFETY: Both pointers are valid for 32 bytes. `address_ptr` is aligned
+        // to 8 bytes by the type layout, while `program_ptr` may be unaligned
+        // because it points into a byte array.
+        unsafe {
+            read_volatile(address_ptr) == read_unaligned(program_ptr)
+                && read_volatile(address_ptr.add(1)) == read_unaligned(program_ptr.add(1))
+                && read_volatile(address_ptr.add(2)) == read_unaligned(program_ptr.add(2))
+                && read_volatile(address_ptr.add(3)) == read_unaligned(program_ptr.add(3))
+        }
     }
 }
 
@@ -237,4 +275,29 @@ impl<'bytes, 'seeds, const SIZE: usize> From<&'seeds [Seed<'bytes>; SIZE]>
             _seeds: PhantomData::<&'seeds [Seed<'bytes>]>,
         }
     }
+}
+
+/// Convenience macro for constructing a `[Seed; N]` array from a list of seeds
+/// to create a [`Signer`].
+///
+/// # Example
+///
+/// Creating seeds array and signer for a PDA with a single seed and bump value:
+/// ```
+/// use solana_address::Address;
+/// use abiv2::{seeds, cpi::{Signer}};
+///
+/// let pda_bump = 0xffu8;
+/// let pda_ref = &[pda_bump];
+/// let example_key = Address::default();
+/// let seeds = seeds!(b"seed", example_key.as_ref(), pda_ref);
+/// let signer = Signer::from(&seeds);
+/// ```
+#[macro_export]
+macro_rules! seeds {
+    ( $($seed:expr),* ) => {
+        [$(
+            $crate::cpi::Seed::from($seed),
+        )*]
+    };
 }
