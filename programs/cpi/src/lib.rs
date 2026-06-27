@@ -25,6 +25,7 @@ pub fn process_instruction(
             let [from, to, system_program, ..] = accounts else {
                 return Err(ProgramError::NotEnoughAccountKeys);
             };
+
             CreateAccount {
                 from,
                 to,
@@ -39,6 +40,7 @@ pub fn process_instruction(
             let [trace_program, ..] = accounts else {
                 return Err(ProgramError::NotEnoughAccountKeys);
             };
+
             Trace { trace_program }.invoke()
         }
         _ => Err(ProgramError::InvalidInstructionData),

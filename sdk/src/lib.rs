@@ -38,12 +38,16 @@ pub const HEAP_ADDRESS: usize = 0x300000000;
 /// Address of the heap region available to programs.
 pub const HEAP_START_ADDRESS: usize = HEAP_ADDRESS + BORROW_FLAGS_SIZE;
 
+/// Borrow-state value representing the maximum number of immutable borrows.
+const MAX_IMMUTABLE_BORROWS: u8 = MUTABLY_BORROWED - 1;
+
+/// Borrow-state sentinel used when account data is mutably borrowed.
+const MUTABLY_BORROWED: u8 = u8::MAX;
+
 /// Borrow-state value used when account data is not borrowed in any form,
 /// immutably or mutably.
 const NOT_BORROWED: u8 = 0;
 
-/// Borrow-state sentinel used when account data is mutably borrowed.
-const MUTABLY_BORROWED: u8 = u8::MAX;
 
 /// A runtime-provided memory region.
 ///

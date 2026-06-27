@@ -1,32 +1,45 @@
+//! Types representing account information.
+//!
+//! Programs have access to two account types:
+//!
+//! - [`Account`]: these are accounts passed to an instruction. Each account
+//!   has a corresponding [`TransactionAccount`].
+//!
+//! - [`TransactionAccount`]: these are accounts present on a transaction.
+//!   Programs have access to all transaction accounts, but can only manipulate
+//!   accounts passed to the current instruction (e.g., modify their data or use
+//!   them in syscalls).
+
 use {
     crate::{
         context::TRANSACTION_ACCOUNTS_ADDRESS,
         syscall::{assign_owner, set_buffer_length, sol_transfer_lamports},
-        MemoryMapping, Ref, RefMut, Volatile, HEAP_ADDRESS, MUTABLY_BORROWED, NOT_BORROWED,
+        MemoryMapping, Ref, RefMut, Volatile, HEAP_ADDRESS, MAX_IMMUTABLE_BORROWS,
+        MUTABLY_BORROWED, NOT_BORROWED,
     },
     core::{
         marker::PhantomData,
         ptr::{read_unaligned, read_volatile, NonNull},
     },
     solana_address::Address,
-    solana_program_error::ProgramError,
+    solana_program_error::{ProgramError, ProgramResult},
 };
 
-/// Mask to query the signer byte.
+/// Mask for the signer flag.
 const SIGNER_MASK: u32 = 1u32 << 16;
 
-/// Mask to query the writable byte.
+/// Mask for the writable flag.
 const WRITABLE_MASK: u32 = 1u32 << 24;
 
-/// Mask to query both writable and signer bytes.
+/// Mask for both writable and signer flags.
 const WRITABLE_SIGNER_MASK: u32 = WRITABLE_MASK | SIGNER_MASK;
 
-/// Instruction-facing view of a transaction account.
+/// Instruction-facing account information.
 ///
-/// `Account` stores the account's transaction index plus the access flags
+/// `Account` stores the account's transaction index and the access flags
 /// supplied to the current instruction. The account metadata and data live in
 /// runtime-managed memory, while borrow state is tracked separately so
-/// duplicate account views cannot create conflicting references to the same
+/// duplicate accounts cannot create conflicting references to the same
 /// account data.
 ///
 /// # Invariants
@@ -34,7 +47,7 @@ const WRITABLE_SIGNER_MASK: u32 = WRITABLE_MASK | SIGNER_MASK;
 /// - The [`TRANSACTION_ACCOUNTS_ADDRESS`] memory region must be available at
 ///   runtime.
 /// - The [`HEAP_ADDRESS`] memory region must be available at runtime, and its
-///   first `4096` bytes must be reserved for account borrow flags.
+///   first [`crate::BORROW_FLAGS_SIZE`] bytes must be reserved for borrow flags.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug)]
 pub struct Account(u32);
@@ -49,8 +62,11 @@ impl Account {
     /// Create an account from its transaction index and instruction flags.
     #[inline(always)]
     pub const fn new(transaction_index: u16, is_signer: bool, is_writable: bool) -> Self {
-        // Keep the bit layout aligned with `SIGNER_MASK` and `WRITABLE_MASK`.
-        Self(transaction_index as u32 | ((is_signer as u32) << 16) | ((is_writable as u32) << 24))
+        Self(
+            transaction_index as u32
+                | (SIGNER_MASK * is_signer as u32)
+                | (WRITABLE_MASK * is_writable as u32),
+        )
     }
 
     /// Create a read-only, non-signer account for the transaction index.
@@ -99,17 +115,16 @@ impl Account {
         (self.0 & WRITABLE_MASK) != 0
     }
 
-    /// Return a pointer to the corresponding transaction account metadata.
-    ///
-    /// # Safety
-    ///
-    /// The returned pointer may only be dereferenced when the runtime has
-    /// mapped transaction account metadata at [`TRANSACTION_ACCOUNTS_ADDRESS`].
+    /// Return a reference to the corresponding transaction account metadata.
     #[inline(always)]
-    unsafe fn transaction_account(&self) -> *const TransactionAccount {
-        (TRANSACTION_ACCOUNTS_ADDRESS
-            + (self.transaction_index() as usize * size_of::<TransactionAccount>()))
-            as *const TransactionAccount
+    pub fn transaction_account(&self) -> &TransactionAccount {
+        // SAFETY: The runtime maps transaction account metadata at
+        // [`TRANSACTION_ACCOUNTS_ADDRESS`].
+        unsafe {
+            &*((TRANSACTION_ACCOUNTS_ADDRESS
+                + (self.transaction_index() as usize * size_of::<TransactionAccount>()))
+                as *const TransactionAccount)
+        }
     }
 
     /// Return a pointer to this account's borrow-state byte.
@@ -126,11 +141,10 @@ impl Account {
     /// Return the address of the account.
     #[inline(always)]
     pub fn address(&self) -> &Address {
-        // SAFETY: The `transaction_account` pointer is valid under `Account`'s
-        // runtime memory invariants.
-        unsafe { &(*self.transaction_account()).address }
+        &self.transaction_account().address
     }
 
+    /// Changes the owner of the account.
     pub fn assign(&self, program: &Address) {
         assign_owner(self.transaction_index() as u64, program);
     }
@@ -145,9 +159,7 @@ impl Account {
     /// non-duplicate accounts.
     #[inline(always)]
     pub unsafe fn borrow_unchecked(&self) -> &[u8] {
-        // SAFETY: The `transaction_account` pointer is valid under
-        // `Account`'s runtime memory invariants.
-        unsafe { (*self.transaction_account()).data.as_slice() }
+        self.transaction_account().data.as_slice()
     }
 
     /// Return a mutable reference to the data in the account.
@@ -161,24 +173,19 @@ impl Account {
     #[allow(clippy::mut_from_ref)]
     #[inline(always)]
     pub unsafe fn borrow_unchecked_mut(&mut self) -> &mut [u8] {
-        // SAFETY: The `transaction_account` pointer is valid under
-        // `Account`'s runtime memory invariants.
-        unsafe { (*self.transaction_account()).data.as_mut_slice() }
+        self.transaction_account().data.as_mut_slice()
     }
 
     /// Checks whether an immutable reference can be created for the account
     /// data, failing if the account is already mutably borrowed or there
     /// are not enough immutable borrows available.
     #[inline(always)]
-    pub fn check_borrow(&self) -> Result<(), ProgramError> {
-        // There must be at least one immutable borrow available, so we test
-        // against `MUTABLY_BORROWED - 2`, which covers the case when there are
-        // no immutable borrows available (`MUTABLY_BORROWED - 1`) and the case
-        // when the account is mutably borrowed (`MUTABLY_BORROWED`).
+    fn check_borrow(&self) -> Result<(), ProgramError> {
+        // There must be at least one immutable borrow available.
         //
         // SAFETY: The `borrow_state` pointer is valid under `Account`'s
         // runtime memory invariants.
-        if unsafe { *self.borrow_state() } > (MUTABLY_BORROWED - 2) {
+        if unsafe { *self.borrow_state() } >= MAX_IMMUTABLE_BORROWS {
             return Err(ProgramError::AccountBorrowFailed);
         }
 
@@ -188,7 +195,7 @@ impl Account {
     /// Checks whether a mutable reference can be created for the account data,
     /// failing if the account is already borrowed in any form.
     #[inline(always)]
-    pub fn check_borrow_mut(&self) -> Result<(), ProgramError> {
+    fn check_borrow_mut(&self) -> Result<(), ProgramError> {
         // SAFETY: The `borrow_state` pointer is valid under `Account`'s
         // runtime memory invariants.
         if unsafe { *self.borrow_state() } != NOT_BORROWED {
@@ -201,9 +208,7 @@ impl Account {
     /// Return the length of the account data in bytes.
     #[inline(always)]
     pub fn data_len(&self) -> usize {
-        // SAFETY: The `transaction_account` pointer is valid under
-        // `Account`'s runtime memory invariants.
-        unsafe { (*self.transaction_account()).data.len.get() as usize }
+        self.transaction_account().data.len.get() as usize
     }
 
     /// Return `true` if the account data is borrowed in any form.
@@ -229,39 +234,23 @@ impl Account {
     /// Return the account lamport balance.
     #[inline(always)]
     pub fn lamports(&self) -> u64 {
-        // SAFETY: The `transaction_account` pointer is valid under
-        // `Account`'s runtime memory invariants.
-        unsafe { (*self.transaction_account()).lamports.get() }
+        self.transaction_account().lamports.get()
     }
 
     /// Return the address of the program that owns the account.
     #[inline(always)]
     pub fn owner(&self) -> Address {
-        // SAFETY: The `transaction_account` pointer is valid under
-        // `Account`'s runtime memory invariants.
-        unsafe { (*self.transaction_account()).owner.get() }
+        self.transaction_account().owner.get()
     }
 
     /// Return `true` if the account is owned by `program`.
     #[inline(always)]
     pub fn owned_by(&self, program: &Address) -> bool {
-        // SAFETY: The `transaction_account` pointer is valid under
-        // `Account`'s runtime memory invariants.
-        let owner_ptr = unsafe { &raw const (*self.transaction_account()).owner } as *const u64;
-        let program_ptr = program.as_array().as_ptr() as *const u64;
-
-        // SAFETY: Both pointers are valid for 32 bytes. `owner_ptr` is aligned
-        // to 8 bytes by the type layout, while `program_ptr` may be unaligned
-        // because it points into a byte array.
-        unsafe {
-            read_volatile(owner_ptr) == read_unaligned(program_ptr)
-                && read_volatile(owner_ptr.add(1)) == read_unaligned(program_ptr.add(1))
-                && read_volatile(owner_ptr.add(2)) == read_unaligned(program_ptr.add(2))
-                && read_volatile(owner_ptr.add(3)) == read_unaligned(program_ptr.add(3))
-        }
+        self.transaction_account().owned_by(program)
     }
 
     /// Transfer lamports to another account.
+    #[inline(always)]
     pub fn transfer_lamports(&self, destination: &Account, lamports: u64) {
         sol_transfer_lamports(
             destination.transaction_index() as u64,
@@ -270,14 +259,28 @@ impl Account {
         );
     }
 
-    /// Resize (either truncating or zero extending) the account's data.
-    pub fn resize(&mut self, new_len: usize) {
-        set_buffer_length(
-            // SAFETY: The `transaction_account` pointer is valid under
-            // `Account`'s runtime memory invariants.
-            unsafe { (*self.transaction_account()).data.ptr as u64 },
-            new_len as u64,
-        );
+    /// Resize (either truncating or zero-extending) the account's data.
+    #[inline(always)]
+    pub fn resize(&mut self, new_len: usize) -> ProgramResult {
+        if self.is_borrowed() {
+            return Err(ProgramError::AccountBorrowFailed);
+        }
+
+        // SAFETY: The account data is not borrowed.
+        unsafe { self.resize_unchecked(new_len) };
+
+        Ok(())
+    }
+
+    /// Resize (either truncating or zero-extending) the account's data.
+    ///
+    /// # Safety
+    ///
+    /// The caller must guarantee that the account data is not borrowed
+    /// in any form.
+    #[inline(always)]
+    pub unsafe fn resize_unchecked(&mut self, new_len: usize) {
+        set_buffer_length(self.transaction_account().data.ptr as u64, new_len as u64);
     }
 
     /// Tries to get an immutable reference to the account data, failing if the
@@ -287,9 +290,9 @@ impl Account {
         self.check_borrow()?;
 
         let borrow_state = unsafe { self.borrow_state() };
-        // Use one immutable borrow for data by incrementing the data borrow
-        // counter; we are guaranteed that there is at least one immutable
-        // borrow available.
+        // Use one immutable borrow for the account data by incrementing the
+        // data borrow counter; we are guaranteed that there is at least one
+        // immutable borrow available.
         //
         // SAFETY: The `borrow_state` is a mutable pointer to the borrow state
         // of the account, which is guaranteed to be valid.
@@ -297,7 +300,7 @@ impl Account {
 
         // Return the reference to data.
         Ok(Ref {
-            value: unsafe { NonNull::from((*self.transaction_account()).data.as_slice()) },
+            value: NonNull::from(self.transaction_account().data.as_slice()),
             state: unsafe { NonNull::new_unchecked(borrow_state) },
             marker: PhantomData,
         })
@@ -319,7 +322,9 @@ impl Account {
 
         // Return the mutable reference to data.
         Ok(RefMut {
-            value: unsafe { NonNull::from((*self.transaction_account()).data.as_mut_slice()) },
+            // SAFETY: The runtime maps account data as mutable for accounts that can be
+            // manipulated by a program.
+            value: NonNull::from(unsafe { self.transaction_account().data.as_mut_slice() }),
             state: unsafe { NonNull::new_unchecked(borrow_state) },
             marker: PhantomData,
         })
@@ -356,6 +361,37 @@ const _: () = {
     assert!(align_of::<TransactionAccount>() == 8);
     assert!(size_of::<TransactionAccount>() == 88);
 };
+
+impl TransactionAccount {
+    /// Return the account lamport balance.
+    #[inline(always)]
+    pub fn lamports(&self) -> u64 {
+        self.lamports.get()
+    }
+
+    /// Return the address of the program that owns the account.
+    #[inline(always)]
+    pub fn owner(&self) -> Address {
+        self.owner.get()
+    }
+
+    /// Return `true` if the account is owned by `program`.
+    #[inline(always)]
+    pub fn owned_by(&self, program: &Address) -> bool {
+        let owner_ptr = &raw const self.owner as *const u64;
+        let program_ptr = program.as_array().as_ptr() as *const u64;
+
+        // SAFETY: Both pointers are valid for 32 bytes. `owner_ptr` is aligned
+        // to 8 bytes by the type layout, while `program_ptr` may be unaligned
+        // because it points into a byte array.
+        unsafe {
+            read_volatile(owner_ptr) == read_unaligned(program_ptr)
+                && read_volatile(owner_ptr.add(1)) == read_unaligned(program_ptr.add(1))
+                && read_volatile(owner_ptr.add(2)) == read_unaligned(program_ptr.add(2))
+                && read_volatile(owner_ptr.add(3)) == read_unaligned(program_ptr.add(3))
+        }
+    }
+}
 
 #[cfg(all(test, unix))]
 mod tests {
@@ -462,6 +498,42 @@ mod tests {
         }
 
         memory
+    }
+
+    #[test]
+    fn test_readonly_account_flags() {
+        let view = Account::readonly(42);
+
+        assert_eq!(view.transaction_index(), 42);
+        assert!(!view.is_signer());
+        assert!(!view.is_writable());
+    }
+
+    #[test]
+    fn test_readonly_signer_account_flags() {
+        let view = Account::readonly_signer(42);
+
+        assert_eq!(view.transaction_index(), 42);
+        assert!(view.is_signer());
+        assert!(!view.is_writable());
+    }
+
+    #[test]
+    fn test_writable_account_flags() {
+        let view = Account::writable(420);
+
+        assert_eq!(view.transaction_index(), 420);
+        assert!(!view.is_signer());
+        assert!(view.is_writable());
+    }
+
+    #[test]
+    fn test_writable_signer_account_flags() {
+        let view = Account::writable_signer(420);
+
+        assert_eq!(view.transaction_index(), 420);
+        assert!(view.is_signer());
+        assert!(view.is_writable());
     }
 
     #[test]
