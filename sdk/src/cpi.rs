@@ -7,8 +7,10 @@
 
 use {
     crate::{
-        account::Account, context::TRANSACTION_METADATA_ADDRESS, syscall::set_buffer_length,
-        MemoryMapping, RefMut, Volatile, HEAP_ADDRESS, MUTABLY_BORROWED, NOT_BORROWED,
+        account::Account,
+        memory::{self, MemoryMapping, CPI_PARAMETERS_ADDRESS, HEAP_ADDRESS, RETURN_DATA_ADDRESS},
+        syscall::set_buffer_length,
+        Ref, RefMut, Volatile, MAX_IMMUTABLE_BORROWS, MUTABLY_BORROWED, NOT_BORROWED,
     },
     core::{
         marker::PhantomData,
@@ -20,15 +22,11 @@ use {
     solana_program_error::ProgramError,
 };
 
-/// Address of the runtime-managed CPI invoke parameters scratchpad.
-///
-/// Programs have a read-only access to this region, unless the `set_buffer_length`
-/// syscall is used to specify its length and gain mutable access. This region
-/// is used to write the parameters for a cross-program invocation.
-pub(crate) const CPI_PARAMETERS_ADDRESS: usize = TRANSACTION_METADATA_ADDRESS + 0x30usize;
-
 /// Index of the borrow flag for the CPI invoke parameters.
-const BORROW_FLAG_INDEX: usize = 4088;
+const CPI_BORROW_FLAG_INDEX: usize = 4088;
+
+/// Index of the borrow flag for the return data.
+const RETURN_DATA_BORROW_FLAG_INDEX: usize = 4089;
 
 /// Runtime scratchpad area for writing CPI invocation parameters.
 #[repr(C)]
@@ -47,17 +45,6 @@ const _: () = {
 };
 
 impl Parameters {
-    /// Return a pointer to the parameter's borrow-state byte.
-    ///
-    /// # Safety
-    ///
-    /// The returned pointer may only be dereferenced when the runtime has
-    /// reserved borrow flags.
-    #[inline(always)]
-    unsafe fn borrow_state() -> *mut u8 {
-        (HEAP_ADDRESS + BORROW_FLAG_INDEX) as *mut u8
-    }
-
     /// Returns the runtime scratchpad area parameters for a cross-program invocation.
     ///
     /// This resizes the instruction data and accounts scratchpads and
@@ -67,7 +54,7 @@ impl Parameters {
         data_len: usize,
     ) -> Result<RefMut<'static, Self>, ProgramError> {
         unsafe {
-            let borrow_state = Self::borrow_state();
+            let borrow_state = memory::mut_ptr_at(HEAP_ADDRESS + CPI_BORROW_FLAG_INDEX);
 
             if *borrow_state != NOT_BORROWED {
                 return Err(ProgramError::Immutable);
@@ -100,7 +87,7 @@ impl Parameters {
         accounts_len: usize,
         data_len: usize,
     ) -> &'static mut Parameters {
-        let parameters = unsafe { &mut *(CPI_PARAMETERS_ADDRESS as *mut Parameters) };
+        let parameters = unsafe { memory::mut_ref_at::<Parameters>(CPI_PARAMETERS_ADDRESS) };
 
         set_buffer_length(
             parameters.accounts.ptr as u64,
@@ -156,10 +143,80 @@ const _: () = {
 };
 
 impl ReturnData {
+    /// Return a reference to the runtime return-data scratchpad.
+    pub fn get() -> Result<Ref<'static, ReturnData>, ProgramError> {
+        unsafe {
+            let borrow_state = memory::mut_ptr_at(HEAP_ADDRESS + RETURN_DATA_BORROW_FLAG_INDEX);
+
+            if *borrow_state >= MAX_IMMUTABLE_BORROWS {
+                return Err(ProgramError::InvalidArgument);
+            }
+
+            *borrow_state += 1;
+
+            Ok(Ref {
+                value: NonNull::from(Self::get_unchecked()),
+                state: NonNull::new_unchecked(borrow_state),
+                marker: PhantomData,
+            })
+        }
+    }
+
+    /// Return a reference to the runtime return-data scratchpad.
+    ///
+    /// # Safety
+    ///
+    /// This method does not update the borrow flag. The caller must ensure that
+    /// no mutable borrow exists for the return-data scratchpad while the
+    /// returned reference is used.
+    pub unsafe fn get_unchecked() -> &'static ReturnData {
+        unsafe { memory::ref_at::<ReturnData>(RETURN_DATA_ADDRESS) }
+    }
+
+    /// Return a mutable reference to the runtime return-data scratchpad.
+    pub fn get_mut(len: usize) -> Result<RefMut<'static, ReturnData>, ProgramError> {
+        unsafe {
+            let borrow_state = memory::mut_ptr_at(HEAP_ADDRESS + RETURN_DATA_BORROW_FLAG_INDEX);
+
+            if *borrow_state != NOT_BORROWED {
+                return Err(ProgramError::InvalidArgument);
+            }
+
+            *borrow_state = MUTABLY_BORROWED;
+
+            Ok(RefMut {
+                value: NonNull::from(Self::get_mut_unchecked(len)),
+                state: NonNull::new_unchecked(borrow_state),
+                marker: PhantomData,
+            })
+        }
+    }
+
+    /// Return a mutable reference to the runtime return-data scratchpad.
+    ///
+    /// # Safety
+    ///
+    /// This method does not update the borrow flag. The caller must ensure that
+    /// no other borrow exists for the return-data scratchpad while the returned
+    /// mutable reference is used.
+    pub unsafe fn get_mut_unchecked(len: usize) -> &'static mut ReturnData {
+        let return_data = unsafe { memory::mut_ref_at::<ReturnData>(RETURN_DATA_ADDRESS) };
+
+        set_buffer_length(return_data.data.ptr as u64, len as u64);
+
+        return_data
+    }
+
     /// Return the current return-data bytes.
     #[inline(always)]
     pub fn as_slice(&self) -> &[u8] {
         self.data.as_slice()
+    }
+
+    /// Return `true` if the return-data scratchpad is empty.
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.data.len.get() == 0
     }
 
     /// Return the address of the program that last wrote return data.

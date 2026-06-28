@@ -25,7 +25,7 @@ pub fn process_instruction(
         return Err(ProgramError::InvalidAccountData);
     }
 
-    account.resize(new_len as usize);
+    account.resize(new_len as usize)?;
 
     if account.data_len() == 0 {
         return Err(ProgramError::AccountDataTooSmall);

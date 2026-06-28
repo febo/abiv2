@@ -12,10 +12,9 @@
 
 use {
     crate::{
-        context::TRANSACTION_ACCOUNTS_ADDRESS,
+        memory::{self, MemoryMapping, HEAP_ADDRESS, TRANSACTION_ACCOUNTS_ADDRESS},
         syscall::{assign_owner, set_buffer_length, sol_transfer_lamports},
-        MemoryMapping, Ref, RefMut, Volatile, HEAP_ADDRESS, MAX_IMMUTABLE_BORROWS,
-        MUTABLY_BORROWED, NOT_BORROWED,
+        Ref, RefMut, Volatile, MAX_IMMUTABLE_BORROWS, MUTABLY_BORROWED, NOT_BORROWED,
     },
     core::{
         marker::PhantomData,
@@ -121,9 +120,10 @@ impl Account {
         // SAFETY: The runtime maps transaction account metadata at
         // [`TRANSACTION_ACCOUNTS_ADDRESS`].
         unsafe {
-            &*((TRANSACTION_ACCOUNTS_ADDRESS
-                + (self.transaction_index() as usize * size_of::<TransactionAccount>()))
-                as *const TransactionAccount)
+            memory::ref_at(memory::element_address::<TransactionAccount>(
+                TRANSACTION_ACCOUNTS_ADDRESS,
+                self.transaction_index() as usize,
+            ))
         }
     }
 
@@ -135,7 +135,7 @@ impl Account {
     /// reserved account borrow flags.
     #[inline(always)]
     unsafe fn borrow_state(&self) -> *mut u8 {
-        (HEAP_ADDRESS + self.transaction_index() as usize) as *mut u8
+        memory::mut_ptr_at(HEAP_ADDRESS + self.transaction_index() as usize)
     }
 
     /// Return the address of the account.
@@ -145,6 +145,9 @@ impl Account {
     }
 
     /// Changes the owner of the account.
+    ///
+    /// A program can only change the owner of an account when the account is
+    /// mutable and the program is the current owner.
     pub fn assign(&self, program: &Address) {
         assign_owner(self.transaction_index() as u64, program);
     }
@@ -250,6 +253,8 @@ impl Account {
     }
 
     /// Transfer lamports to another account.
+    ///
+    /// A program can only transfer lamports from an owned account.
     #[inline(always)]
     pub fn transfer_lamports(&self, destination: &Account, lamports: u64) {
         sol_transfer_lamports(

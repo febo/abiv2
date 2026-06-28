@@ -3,12 +3,18 @@
 #![no_std]
 #![allow(clippy::arithmetic_side_effects)]
 
+pub mod account;
+pub mod context;
+pub mod cpi;
+pub mod entrypoint;
+pub(crate) mod memory;
+pub mod syscall;
+
 use core::{
     marker::PhantomData,
     mem::ManuallyDrop,
     ops::{Deref, DerefMut},
     ptr::{read_volatile, write_volatile, NonNull},
-    slice::{from_raw_parts, from_raw_parts_mut},
 };
 // Re-export for downstream use:
 //   - `solana_address`
@@ -16,101 +22,18 @@ use core::{
 pub use {
     solana_address::{self as address, Address},
     solana_program_error::{self as error, ProgramResult},
+    memory::{BORROW_FLAGS_SIZE, HEAP_ADDRESS, HEAP_START_ADDRESS}
 };
 
-pub mod account;
-pub mod context;
-pub mod cpi;
-pub mod entrypoint;
-pub mod syscall;
-
-/// Reserved bytes for account borrow flags.
-pub const BORROW_FLAGS_SIZE: usize = 4096;
-
-/// Address of the heap memory region.
-///
-/// This is the start address of the heap memory allocated by
-/// the runtime. Note that the first [`BORROW_FLAGS_SIZE`] bytes
-/// are reserved and should not be used by programs. Use
-/// [`HEAP_START_ADDRESS`] for custom heap allocations.
-pub const HEAP_ADDRESS: usize = 0x300000000;
-
-/// Address of the heap region available to programs.
-pub const HEAP_START_ADDRESS: usize = HEAP_ADDRESS + BORROW_FLAGS_SIZE;
-
 /// Borrow-state value representing the maximum number of immutable borrows.
-const MAX_IMMUTABLE_BORROWS: u8 = MUTABLY_BORROWED - 1;
+pub(crate) const MAX_IMMUTABLE_BORROWS: u8 = MUTABLY_BORROWED - 1;
 
 /// Borrow-state sentinel used when account data is mutably borrowed.
-const MUTABLY_BORROWED: u8 = u8::MAX;
+pub(crate) const MUTABLY_BORROWED: u8 = u8::MAX;
 
 /// Borrow-state value used when account data is not borrowed in any form,
 /// immutably or mutably.
-const NOT_BORROWED: u8 = 0;
-
-
-/// A runtime-provided memory region.
-///
-/// `MemoryMapping` describes a contiguous region owned by the runtime. The
-/// length is volatile because syscalls may update mapped metadata.
-#[repr(C)]
-pub(crate) struct MemoryMapping<T> {
-    /// Address of the mapped region for `T`.
-    ptr: *const T,
-
-    /// Number of mapped `T` elements available.
-    len: Volatile<u64>,
-}
-
-impl<T> MemoryMapping<T> {
-    /// Return the mapped region as an immutable slice.
-    #[inline(always)]
-    pub(crate) fn as_slice(&self) -> &[T] {
-        unsafe { from_raw_parts(self.ptr, self.len.get() as usize) }
-    }
-
-    /// Return a mutable slice for the memory region.
-    ///
-    /// # Safety
-    ///
-    /// The caller must guarantee that the mapped region is writable and that no
-    /// other references alias the returned mutable slice.
-    #[inline(always)]
-    #[allow(clippy::mut_from_ref)]
-    pub(crate) unsafe fn as_mut_slice(&self) -> &mut [T] {
-        unsafe { from_raw_parts_mut(self.ptr as *mut T, self.len.get() as usize) }
-    }
-}
-
-/// Wrapper for values that must be accessed with volatile loads and stores.
-///
-/// This is used for fields backed by memory-mapped runtime state, where the
-/// value may be updated by the runtime.
-#[repr(transparent)]
-pub struct Volatile<T: Copy>(T);
-
-impl<T: Copy> Volatile<T> {
-    /// Creates a volatile wrapper around a `T` value.
-    pub fn new(value: T) -> Self {
-        Self(value)
-    }
-
-    /// Reads the value with a volatile load.
-    #[inline(always)]
-    pub fn get(&self) -> T {
-        // SAFETY: `self` guarantees that the wrapped field is valid for reads,
-        // and `T: Copy` lets the value be returned by value.
-        unsafe { read_volatile(&self.0) }
-    }
-
-    /// Writes `value` with a volatile store.
-    #[inline(always)]
-    pub fn set(&mut self, value: T) {
-        // SAFETY: `&mut self` guarantees that the wrapped field is valid for
-        // writes for the duration of the store.
-        unsafe { write_volatile(&mut self.0, value) }
-    }
-}
+pub(crate) const NOT_BORROWED: u8 = 0;
 
 /// An immutable reference to `T` with checked borrow rules.
 ///
@@ -309,6 +232,36 @@ impl<T: ?Sized> Drop for RefMut<'_, T> {
     fn drop(&mut self) {
         // Clear the mutable-borrow sentinel.
         unsafe { *self.state.as_mut() = NOT_BORROWED };
+    }
+}
+
+/// Wrapper for values that must be accessed with volatile loads and stores.
+///
+/// This is used for fields backed by memory-mapped runtime state, where the
+/// value may be updated by the runtime.
+#[repr(transparent)]
+pub struct Volatile<T: Copy>(T);
+
+impl<T: Copy> Volatile<T> {
+    /// Creates a volatile wrapper around a `T` value.
+    pub fn new(value: T) -> Self {
+        Self(value)
+    }
+
+    /// Reads the value with a volatile load.
+    #[inline(always)]
+    pub fn get(&self) -> T {
+        // SAFETY: `self` guarantees that the wrapped field is valid for reads,
+        // and `T: Copy` lets the value be returned by value.
+        unsafe { read_volatile(&self.0) }
+    }
+
+    /// Writes `value` with a volatile store.
+    #[inline(always)]
+    pub fn set(&mut self, value: T) {
+        // SAFETY: `&mut self` guarantees that the wrapped field is valid for
+        // writes for the duration of the store.
+        unsafe { write_volatile(&mut self.0, value) }
     }
 }
 

@@ -32,7 +32,7 @@ pub fn process_instruction(
                 system_program,
                 lamports: 1_000_000_000,
                 space: 100,
-                owner: &context.program().address,
+                owner: &context.program_account().address,
             }
             .invoke()
         }
