@@ -8,6 +8,7 @@ members = [
     "programs/assign-owner",
     "programs/cpi",
     "programs/deny-allocator",
+    "programs/return-data",
     "programs/trace",
     "programs/transfer-lamports",
     "sdk"

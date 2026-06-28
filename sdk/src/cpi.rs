@@ -213,6 +213,12 @@ impl ReturnData {
         self.data.as_slice()
     }
 
+    /// Return the current return-data bytes.
+    #[inline(always)]
+    pub fn as_mut_slice(&mut self) -> &mut [u8] {
+        unsafe { self.data.as_mut_slice() }
+    }
+
     /// Return `true` if the return-data scratchpad is empty.
     #[inline(always)]
     pub fn is_empty(&self) -> bool {
