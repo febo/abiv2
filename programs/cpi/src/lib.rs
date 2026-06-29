@@ -6,7 +6,7 @@ use abiv2::{
     account::Account,
     address::ADDRESS_BYTES,
     context::InstructionContext,
-    cpi::{Parameters, Signer},
+    cpi::{Parameters, ReturnData, Signer},
     entrypoint,
     error::ProgramError,
     syscall::sol_invoke,
@@ -42,6 +42,27 @@ pub fn process_instruction(
             };
 
             Trace { trace_program }.invoke()
+        }
+        Some(&2) => {
+            let [return_data_program, ..] = accounts else {
+                return Err(ProgramError::NotEnoughAccountKeys);
+            };
+
+            WriteReturn {
+                return_data_program: return_data_program.as_ref(),
+                data: context.program_account().address.as_array(),
+            }
+            .invoke()?;
+
+            let return_data = ReturnData::get()?;
+
+            if &return_data.program() != return_data_program.address()
+                || return_data.as_slice() != context.program_account().address.as_array()
+            {
+                return Err(ProgramError::InvalidArgument);
+            }
+
+            Ok(())
         }
         _ => Err(ProgramError::InvalidInstructionData),
     }
@@ -151,6 +172,33 @@ impl<CpiAccount: AsRef<Account>> Trace<CpiAccount> {
     #[inline(always)]
     pub fn invoke(&self) -> ProgramResult {
         sol_invoke(self.trace_program.as_ref().transaction_index() as u64, 0, 0);
+
+        Ok(())
+    }
+}
+
+/// Write the data as a return data.
+pub struct WriteReturn<'data, CpiAccount: AsRef<Account>> {
+    /// Callee program account.
+    pub return_data_program: CpiAccount,
+
+    /// The return data to write.
+    pub data: &'data [u8],
+}
+
+impl<CpiAccount: AsRef<Account>> WriteReturn<'_, CpiAccount> {
+    #[inline(always)]
+    pub fn invoke(&self) -> ProgramResult {
+        let mut parameters = Parameters::for_invocation(0, self.data.len())?;
+
+        let instruction_data = parameters.instruction_data_mut();
+        instruction_data.copy_from_slice(self.data);
+
+        sol_invoke(
+            self.return_data_program.as_ref().transaction_index() as u64,
+            0,
+            0,
+        );
 
         Ok(())
     }
