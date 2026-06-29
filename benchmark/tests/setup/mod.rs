@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use {
     mollusk_svm::{
         result::{Check, InstructionResult},
@@ -10,8 +12,6 @@ use {
 
 /// Base lamports for accounts, used to ensure accounts are rent-exempt.
 pub const BASE_LAMPORTS: u64 = 2_000_000_000u64;
-
-pub const PROGRAM_ID: Address = Address::new_from_array([255u8; 32]);
 
 pub fn run(
     mollusk: &Mollusk,

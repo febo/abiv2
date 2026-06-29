@@ -1,12 +1,14 @@
 mod setup;
 
 use {
-    crate::setup::{run, setup, BASE_LAMPORTS, PROGRAM_ID},
+    crate::setup::{run, setup, BASE_LAMPORTS},
     mollusk_svm::result::Check,
     solana_account::Account,
     solana_address::Address,
     solana_instruction::{error::InstructionError, AccountMeta, Instruction},
 };
+
+const PROGRAM_ID: Address = Address::from_str_const("accountdata11111111111111111111111111111111");
 
 fn instruction(
     program_id: &Address,

@@ -1,13 +1,15 @@
 mod setup;
 
 use {
-    crate::setup::{run, setup, BASE_LAMPORTS, PROGRAM_ID},
+    crate::setup::{run, setup, BASE_LAMPORTS},
     mollusk_svm::result::Check,
     solana_account::Account,
     solana_address::Address,
     solana_instruction::{AccountMeta, Instruction},
     solana_program_error::ProgramError,
 };
+
+const PROGRAM_ID: Address = Address::from_str_const("accountborrow111111111111111111111111111111");
 
 fn instruction(program_id: &Address, duplicated: bool) -> (Instruction, Vec<(Address, Account)>) {
     let first = Address::new_unique();
