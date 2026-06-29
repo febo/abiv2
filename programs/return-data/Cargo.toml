@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 abiv2 = { workspace = true }
+solana-program-log = "1.2.0"
 
 [lints.rust.unexpected_cfgs]
 level = "warn"

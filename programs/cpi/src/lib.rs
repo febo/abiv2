@@ -54,7 +54,7 @@ pub fn process_instruction(
             }
             .invoke()?;
 
-            let return_data = ReturnData::get()?;
+            let return_data = ReturnData::borrow()?;
 
             if &return_data.program() != return_data_program.address()
                 || return_data.as_slice() != context.program_account().address.as_array()

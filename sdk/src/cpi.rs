@@ -144,7 +144,7 @@ const _: () = {
 
 impl ReturnData {
     /// Return a reference to the runtime return-data scratchpad.
-    pub fn get() -> Result<Ref<'static, ReturnData>, ProgramError> {
+    pub fn borrow() -> Result<Ref<'static, ReturnData>, ProgramError> {
         unsafe {
             let borrow_state = memory::mut_ptr_at(HEAP_ADDRESS + RETURN_DATA_BORROW_FLAG_INDEX);
 
@@ -155,7 +155,7 @@ impl ReturnData {
             *borrow_state += 1;
 
             Ok(Ref {
-                value: NonNull::from(Self::get_unchecked()),
+                value: NonNull::from(Self::borrow_unchecked()),
                 state: NonNull::new_unchecked(borrow_state),
                 marker: PhantomData,
             })
@@ -169,12 +169,12 @@ impl ReturnData {
     /// This method does not update the borrow flag. The caller must ensure that
     /// no mutable borrow exists for the return-data scratchpad while the
     /// returned reference is used.
-    pub unsafe fn get_unchecked() -> &'static ReturnData {
+    pub unsafe fn borrow_unchecked() -> &'static ReturnData {
         unsafe { memory::ref_at::<ReturnData>(RETURN_DATA_ADDRESS) }
     }
 
     /// Return a mutable reference to the runtime return-data scratchpad.
-    pub fn get_mut(len: usize) -> Result<RefMut<'static, ReturnData>, ProgramError> {
+    pub fn borrow_mut(len: usize) -> Result<RefMut<'static, ReturnData>, ProgramError> {
         unsafe {
             let borrow_state = memory::mut_ptr_at(HEAP_ADDRESS + RETURN_DATA_BORROW_FLAG_INDEX);
 
@@ -185,7 +185,7 @@ impl ReturnData {
             *borrow_state = MUTABLY_BORROWED;
 
             Ok(RefMut {
-                value: NonNull::from(Self::get_mut_unchecked(len)),
+                value: NonNull::from(Self::borrow_mut_unchecked(len)),
                 state: NonNull::new_unchecked(borrow_state),
                 marker: PhantomData,
             })
@@ -199,7 +199,7 @@ impl ReturnData {
     /// This method does not update the borrow flag. The caller must ensure that
     /// no other borrow exists for the return-data scratchpad while the returned
     /// mutable reference is used.
-    pub unsafe fn get_mut_unchecked(len: usize) -> &'static mut ReturnData {
+    pub unsafe fn borrow_mut_unchecked(len: usize) -> &'static mut ReturnData {
         let return_data = unsafe { memory::mut_ref_at::<ReturnData>(RETURN_DATA_ADDRESS) };
 
         set_buffer_length(return_data.data.ptr as u64, len as u64);
