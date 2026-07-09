@@ -7,17 +7,10 @@ program-target = $(subst /,-,$(patsubst programs/%,%,$1))
 PROGRAMS := $(wildcard programs/*)
 # Generate the dashed target program names.
 PROGRAM_TARGETS := $(foreach src,$(PROGRAMS),$(call program-target,$(src)))
-# Get the command-line arguments after the target.
-ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-
-# Available targets.
-.PHONY: bench all build clean clippy format test
 
 # Run `cargo bench`.
-#
-# Expected args: <type> [branch name]
 bench:
-	@cargo bench --bench $(ARGS)
+	@cargo bench $(ARGS)
 
 # Build all programs.
 all:
@@ -27,7 +20,7 @@ all:
 
 # Build a program.
 build-%:
-	@RUSTFLAGS="-C embed-bitcode=yes -C lto=fat" cargo build-sbf --manifest-path programs/$*/Cargo.toml --arch v3 --abi-v2
+	@RUSTFLAGS="-C embed-bitcode=yes -C lto=fat" cargo build-sbf --manifest-path programs/$*/Cargo.toml --arch v3 --abi-v2 $(ARGS)
 
 # Run `cargo clean`.
 clean:
@@ -45,10 +38,7 @@ clippy:
 
 # Run `cargo fmt`.
 format:
-	@cargo $(nightly) fmt --all
+	@cargo $(nightly) fmt --all $(ARGS)
 
 test:
 	SBF_OUT_DIR=$(PWD)/target/deploy cargo test --manifest-path benchmark/Cargo.toml $(ARGS)
-
-%:
-	@# Ignore unknown targets to allow passing arguments after the target.
