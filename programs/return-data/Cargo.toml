@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 abiv2 = { workspace = true }
+solana-address = { version = "2.6", features = ["syscalls"] }
 solana-program-log = "1.2.0"
 
 [lints.rust.unexpected_cfgs]

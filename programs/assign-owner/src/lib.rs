@@ -1,3 +1,7 @@
+//! An ABIv2 program that demonstrates how to change the owner of an account.
+//!
+//! The owner to assign to the account is passed in as instruction data.
+
 #![no_std]
 
 use abiv2::{
@@ -9,13 +13,13 @@ entrypoint!(process_instruction);
 
 pub fn process_instruction(
     _context: &InstructionContext,
-    accounts: &mut [Account],
+    accounts: &[Account],
     instruction_data: &[u8],
 ) -> ProgramResult {
     let address =
         Address::try_from(instruction_data).map_err(|_| ProgramError::InvalidInstructionData)?;
 
-    let [account, ..] = accounts else {
+    let &[account, ..] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 

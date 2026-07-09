@@ -1,3 +1,11 @@
+//! An ABIv2 program that demonstrates how to perform cross-program invocations (CPI)
+//! to other programs.
+//!
+//! The program supports three instructions:
+//!   1. `CreateAccount`: Creates a new account by invoking the system program.
+//!   2. `Trace`: Logs instruction and transaction information by invoking a trace program.
+//!   3. `WriteReturn`: Writes data as return data by invoking a return data program.
+
 #![no_std]
 
 use core::ptr::copy_nonoverlapping;
@@ -17,12 +25,12 @@ entrypoint!(process_instruction);
 
 pub fn process_instruction(
     context: &InstructionContext,
-    accounts: &mut [Account],
+    accounts: &[Account],
     instruction_data: &[u8],
 ) -> ProgramResult {
     match instruction_data.first() {
         Some(&0) => {
-            let [from, to, system_program, ..] = accounts else {
+            let &[from, to, system_program, ..] = accounts else {
                 return Err(ProgramError::NotEnoughAccountKeys);
             };
 
@@ -37,19 +45,19 @@ pub fn process_instruction(
             .invoke()
         }
         Some(&1) => {
-            let [trace_program, ..] = accounts else {
+            let &[trace_program, ..] = accounts else {
                 return Err(ProgramError::NotEnoughAccountKeys);
             };
 
             Trace { trace_program }.invoke()
         }
         Some(&2) => {
-            let [return_data_program, ..] = accounts else {
+            let &[return_data_program, ..] = accounts else {
                 return Err(ProgramError::NotEnoughAccountKeys);
             };
 
             WriteReturn {
-                return_data_program: return_data_program.as_ref(),
+                return_data_program: return_data_program,
                 data: context.program_account().address.as_array(),
             }
             .invoke()?;
@@ -80,15 +88,15 @@ pub fn process_instruction(
 ///   - `u64` Number of lamports to transfer to the new account.
 ///   - `u64` Number of bytes of memory to allocate.
 ///   - `Address` Address of the program that will own the new account.
-pub struct CreateAccount<'address, CpiAccount: AsRef<Account>> {
+pub struct CreateAccount<'address> {
     /// Callee program account.
-    pub system_program: CpiAccount,
+    pub system_program: Account,
 
     /// Funding account.
-    pub from: CpiAccount,
+    pub from: Account,
 
     /// New account.
-    pub to: CpiAccount,
+    pub to: Account,
 
     /// Number of lamports to transfer to the new account.
     pub lamports: u64,
@@ -100,7 +108,7 @@ pub struct CreateAccount<'address, CpiAccount: AsRef<Account>> {
     pub owner: &'address Address,
 }
 
-impl<CpiAccount: AsRef<Account>> CreateAccount<'_, CpiAccount> {
+impl CreateAccount<'_> {
     pub const DISCRIMINATOR: u32 = 0;
 
     #[inline(always)]
@@ -110,7 +118,7 @@ impl<CpiAccount: AsRef<Account>> CreateAccount<'_, CpiAccount> {
 
     #[inline(always)]
     pub fn invoke_signed(&self, signers: &[Signer]) -> ProgramResult {
-        if self.from.as_ref().is_borrowed() | self.to.as_ref().is_borrowed() {
+        if self.from.is_borrowed() | self.to.is_borrowed() {
             return Err(ProgramError::AccountBorrowFailed);
         }
 
@@ -118,8 +126,8 @@ impl<CpiAccount: AsRef<Account>> CreateAccount<'_, CpiAccount> {
 
         // Accounts.
         let accounts = parameters.accounts_mut();
-        accounts[0] = Account::writable_signer(self.from.as_ref().transaction_index());
-        accounts[1] = Account::writable_signer(self.to.as_ref().transaction_index());
+        accounts[0] = Account::writable_signer(self.from.transaction_index());
+        accounts[1] = Account::writable_signer(self.to.transaction_index());
 
         // Instruction data:
         // - [ 0..4 ]: instruction discriminator
@@ -163,12 +171,12 @@ impl<CpiAccount: AsRef<Account>> CreateAccount<'_, CpiAccount> {
 }
 
 /// Logs instruction and transacrion information.
-pub struct Trace<CpiAccount: AsRef<Account>> {
+pub struct Trace {
     /// Callee program account.
-    pub trace_program: CpiAccount,
+    pub trace_program: Account,
 }
 
-impl<CpiAccount: AsRef<Account>> Trace<CpiAccount> {
+impl Trace {
     #[inline(always)]
     pub fn invoke(&self) -> ProgramResult {
         sol_invoke(self.trace_program.as_ref().transaction_index() as u64, 0, 0);
@@ -178,15 +186,15 @@ impl<CpiAccount: AsRef<Account>> Trace<CpiAccount> {
 }
 
 /// Write the data as a return data.
-pub struct WriteReturn<'data, CpiAccount: AsRef<Account>> {
+pub struct WriteReturn<'data> {
     /// Callee program account.
-    pub return_data_program: CpiAccount,
+    pub return_data_program: Account,
 
     /// The return data to write.
     pub data: &'data [u8],
 }
 
-impl<CpiAccount: AsRef<Account>> WriteReturn<'_, CpiAccount> {
+impl WriteReturn<'_> {
     #[inline(always)]
     pub fn invoke(&self) -> ProgramResult {
         let mut parameters = Parameters::for_invocation(0, self.data.len())?;

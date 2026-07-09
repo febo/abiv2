@@ -1,3 +1,6 @@
+//! An ABIv2 program that demonstrates how to access instruction and transaction
+//! information.
+
 #![no_std]
 
 use abiv2::{
@@ -11,7 +14,7 @@ entrypoint!(process_instruction);
 
 pub fn process_instruction(
     context: &InstructionContext,
-    _accounts: &mut [Account],
+    _accounts: &[Account],
     _instruction_data: &[u8],
 ) -> ProgramResult {
     // Instruction context.

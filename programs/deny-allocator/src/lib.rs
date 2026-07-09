@@ -1,3 +1,6 @@
+//! An ABIv2 program that demonstrates the use of a deny allocator to prevent
+//! heap allocations.
+
 use abiv2::{
     account::Account, context::InstructionContext, default_panic_handler, deny_allocator,
     error::ProgramError, program_entrypoint, ProgramResult,
@@ -9,10 +12,10 @@ deny_allocator!();
 
 pub fn process_instruction(
     _context: &InstructionContext,
-    accounts: &mut [Account],
+    accounts: &[Account],
     _instruction_data: &[u8],
 ) -> ProgramResult {
-    let [account, ..] = accounts else {
+    let &[account, ..] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 

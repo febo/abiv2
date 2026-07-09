@@ -1,8 +1,9 @@
+//! An ABIv2 program that demonstrates how to change the owner of an account.
+
 #![no_std]
 
 use abiv2::{
-    account::Account, context::InstructionContext, cpi::ReturnData, entrypoint,
-    syscall::sol_log_pubkey, ProgramResult,
+    account::Account, context::InstructionContext, cpi::ReturnData, entrypoint, ProgramResult,
 };
 use solana_program_log::log;
 
@@ -10,15 +11,19 @@ entrypoint!(process_instruction);
 
 pub fn process_instruction(
     _context: &InstructionContext,
-    _accounts: &mut [Account],
+    _accounts: &[Account],
     instruction_data: &[u8],
 ) -> ProgramResult {
-    log!("----");
+    // The return data at beginning of the instruction
+    // should be empty, with the program address as the
+    // current program's address.
     let return_data = ReturnData::borrow()?;
+    log!("----");
     log!("program:");
-    unsafe { sol_log_pubkey(return_data.program().as_array().as_ptr()) };
+    return_data.program().log();
     log!("data len: {}", return_data.as_slice().len());
     log!("----");
+
     // Make sure the reference is dropped before the mutable borrow.
     drop(return_data);
 
