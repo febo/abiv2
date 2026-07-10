@@ -17,7 +17,7 @@ use abiv2::{
     cpi::{Parameters, ReturnData, Signer},
     entrypoint,
     error::ProgramError,
-    syscall::sol_invoke,
+    syscall::sol_invoke_signed,
     Address, ProgramResult,
 };
 
@@ -160,7 +160,7 @@ impl CreateAccount<'_> {
             copy_nonoverlapping(self.owner.as_ref().as_ptr(), dst.add(20), ADDRESS_BYTES);
         }
 
-        sol_invoke(
+        sol_invoke_signed(
             self.system_program.as_ref().transaction_index() as u64,
             signers.as_ptr() as u64,
             signers.len() as u64,
@@ -179,7 +179,7 @@ pub struct Trace {
 impl Trace {
     #[inline(always)]
     pub fn invoke(&self) -> ProgramResult {
-        sol_invoke(self.trace_program.as_ref().transaction_index() as u64, 0, 0);
+        sol_invoke_signed(self.trace_program.as_ref().transaction_index() as u64, 0, 0);
 
         Ok(())
     }
@@ -202,7 +202,7 @@ impl WriteReturn<'_> {
         let instruction_data = parameters.instruction_data_mut();
         instruction_data.copy_from_slice(self.data);
 
-        sol_invoke(
+        sol_invoke_signed(
             self.return_data_program.as_ref().transaction_index() as u64,
             0,
             0,

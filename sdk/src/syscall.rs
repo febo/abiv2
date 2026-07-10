@@ -24,7 +24,7 @@ pub fn set_buffer_length(base_address: u64, new_length: u64) -> u64 {
     }
 }
 
-pub fn sol_invoke(program_idx: u64, signer_seeds_ptr: u64, signer_seeds_len: u64) {
+pub fn sol_invoke_signed(program_idx: u64, signer_seeds_ptr: u64, signer_seeds_len: u64) {
     unsafe {
         let syscall: extern "C" fn(u64, u64, u64) = core::mem::transmute(2722332484u64);
         syscall(program_idx, signer_seeds_ptr, signer_seeds_len);
