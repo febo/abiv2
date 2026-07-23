@@ -24,10 +24,13 @@ use {
 /// track borrows. These are stored in the first `4096` bytes of the
 /// heap region. When defining a custom allocator, the [`HEAP_START_ADDRESS`]
 /// should be used as the start address for allocations.
-/// 
+///
 /// A program without heap space can still use `unchecked` variants
 /// to bypass the borrow tracking.
 pub const BORROW_FLAGS_SIZE: usize = 4096;
+
+/// Maximum number of accounts (including sysvars) in a transaction.
+pub const MAX_TRANSACTION_ACCOUNTS: usize = 4088;
 
 /// Address of the heap memory region.
 ///
@@ -41,16 +44,16 @@ pub const HEAP_ADDRESS: usize = 0x300000000;
 pub const HEAP_START_ADDRESS: usize = HEAP_ADDRESS + BORROW_FLAGS_SIZE;
 
 /// Address of the runtime-managed transaction metadata memory region.
-/// 
+///
 /// The transaction metadata is divided into three components:
-/// 
+///
 ///   - `ReturnData`: scratchpad available to programs to read/write
 ///     return data. This is specified by [`RETURN_DATA_ADDRESS`].
-/// 
+///
 ///   - `Parameters`: scratchpad available to pass accounts and instruction
 ///     data to cross-program invocations. This is specified by
 ///     [`CPI_PARAMETERS_ADDRESS`].
-/// 
+///
 ///   - `TransactionContext`: metadata information about the current
 ///     executing transaction. This is specofied as [`TRANSACTION_CONTEXT_ADDRESS`].
 const TRANSACTION_METADATA_ADDRESS: usize = 0x400000000usize;
@@ -61,6 +64,9 @@ pub(crate) const TRANSACTION_ACCOUNTS_ADDRESS: usize = 0x500000000usize;
 /// Address of the runtime-managed instruction region.
 pub(crate) const INSTRUCTION_ADDRESS: usize = 0x600000000usize;
 
+/// Address of the runtime-managed transaction accounts payload memory region.
+pub(crate) const TRANSACTION_ACCOUNTS_PAYLOAD_ADDRESS: usize = 0x800000000usize;
+
 /// Address of the runtime-managed return data scratchpad.
 pub(crate) const RETURN_DATA_ADDRESS: usize = TRANSACTION_METADATA_ADDRESS;
 
@@ -70,10 +76,21 @@ pub(crate) const CPI_PARAMETERS_ADDRESS: usize = TRANSACTION_METADATA_ADDRESS + 
 /// Address of the transaction context data.
 pub(crate) const TRANSACTION_CONTEXT_ADDRESS: usize = TRANSACTION_METADATA_ADDRESS + 0x50usize;
 
+/// Length (in bytes) of a mapping page.
+///
+/// This represents the gap between account mappings.
+pub(crate) const MAPPING_PAGE_LENGTH: usize = 0x100000000usize;
+
 /// Return the address of `index` within a runtime array of `T`.
 #[inline(always)]
 pub(crate) const fn element_address<T>(base: usize, index: usize) -> usize {
     base + (index * size_of::<T>())
+}
+
+/// Return the address of `index` within a runtime memoyr mapping.
+#[inline(always)]
+pub(crate) const fn mapping_ptr(base: usize, index: usize) -> usize {
+    base + (index * MAPPING_PAGE_LENGTH)
 }
 
 /// Return a mutable pointer for a fixed runtime address.

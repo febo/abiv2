@@ -9,6 +9,7 @@ pub mod cpi;
 pub mod entrypoint;
 pub(crate) mod memory;
 pub mod syscall;
+pub mod sysvar;
 
 use core::{
     marker::PhantomData,
