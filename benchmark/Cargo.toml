@@ -4,7 +4,7 @@ edition = "2021"
 publish = false
 
 [dev-dependencies]
-mollusk-svm = { version = "0.14.0", git = "https://github.com/febo/mollusk.git", branch = "agave-abiv2" }
+mollusk-svm = { version = "0.14.0-agave-4.2.0-beta.0", git = "https://github.com/febo/mollusk.git", branch = "agave-abiv2" }
 solana-account = "4.3.0"
 solana-address = { version = "2.0", features = ["decode"] }
 solana-bpf-loader-program = { version = "4.3.0-alpha.0", git = "https://github.com/anza-xyz/agave-runtime.git" }

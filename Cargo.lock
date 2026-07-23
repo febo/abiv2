@@ -1343,8 +1343,8 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "mollusk-svm"
-version = "0.14.0"
-source = "git+https://github.com/febo/mollusk.git?branch=agave-abiv2#f838460f6a4ec4665c6927108a5c0df39a793d87"
+version = "0.14.0-agave-4.2.0-beta.0"
+source = "git+https://github.com/febo/mollusk.git?branch=agave-abiv2#196b54cc0293179deff63ffc62f113f464413a84"
 dependencies = [
  "bincode",
  "mollusk-svm-error",
@@ -1384,8 +1384,8 @@ dependencies = [
 
 [[package]]
 name = "mollusk-svm-error"
-version = "0.14.0"
-source = "git+https://github.com/febo/mollusk.git?branch=agave-abiv2#f838460f6a4ec4665c6927108a5c0df39a793d87"
+version = "0.14.0-agave-4.2.0-beta.0"
+source = "git+https://github.com/febo/mollusk.git?branch=agave-abiv2#196b54cc0293179deff63ffc62f113f464413a84"
 dependencies = [
  "solana-pubkey",
  "thiserror 2.0.18",
@@ -1393,8 +1393,8 @@ dependencies = [
 
 [[package]]
 name = "mollusk-svm-result"
-version = "0.14.0"
-source = "git+https://github.com/febo/mollusk.git?branch=agave-abiv2#f838460f6a4ec4665c6927108a5c0df39a793d87"
+version = "0.14.0-agave-4.2.0-beta.0"
+source = "git+https://github.com/febo/mollusk.git?branch=agave-abiv2#196b54cc0293179deff63ffc62f113f464413a84"
 dependencies = [
  "solana-account",
  "solana-instruction",
@@ -1761,6 +1761,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
+name = "rent-sysvar"
+version = "0.0.0"
+dependencies = [
+ "abiv2",
+]
+
+[[package]]
 name = "return-data"
 version = "0.0.0"
 dependencies = [
@@ -2055,8 +2062,8 @@ dependencies = [
 
 [[package]]
 name = "solana-bpf-loader-program"
-version = "4.3.0-alpha.0"
-source = "git+https://github.com/anza-xyz/agave-runtime.git#ac3d5108ba5e321253482b4bb0f3e5f181767383"
+version = "4.3.0-alpha.1"
+source = "git+https://github.com/anza-xyz/agave-runtime.git#ceb41c692ee86612ff0700f833102ea3f674e49b"
 dependencies = [
  "bincode",
  "qualifier_attr",
@@ -2095,8 +2102,8 @@ dependencies = [
 
 [[package]]
 name = "solana-compute-budget"
-version = "4.3.0-alpha.0"
-source = "git+https://github.com/anza-xyz/agave-runtime.git#ac3d5108ba5e321253482b4bb0f3e5f181767383"
+version = "4.3.0-alpha.1"
+source = "git+https://github.com/anza-xyz/agave-runtime.git#ceb41c692ee86612ff0700f833102ea3f674e49b"
 dependencies = [
  "solana-fee-structure",
  "solana-program-runtime",
@@ -2230,7 +2237,6 @@ checksum = "37ebb0ffd19263051bc3f683fcc086134b8ff23af894dcb63f7563c7137b42f1"
 dependencies = [
  "bincode",
  "serde",
- "serde_derive",
  "solana-define-syscall 5.1.0",
  "solana-instruction-error",
  "solana-pubkey",
@@ -2337,9 +2343,9 @@ dependencies = [
 
 [[package]]
 name = "solana-message"
-version = "4.2.4"
+version = "4.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2666e0ff38557ad1239d0fc42f4688fb9df0817fb12c041dbae90c2b2e3fa55"
+checksum = "cfe614646c48c59fff4d47ebd893c13d74c85a32573a45dadde430b13f576d64"
 dependencies = [
  "solana-address",
  "solana-hash",
@@ -2469,8 +2475,8 @@ dependencies = [
 
 [[package]]
 name = "solana-program-runtime"
-version = "4.3.0-alpha.0"
-source = "git+https://github.com/anza-xyz/agave-runtime.git#ac3d5108ba5e321253482b4bb0f3e5f181767383"
+version = "4.3.0-alpha.1"
+source = "git+https://github.com/anza-xyz/agave-runtime.git#ceb41c692ee86612ff0700f833102ea3f674e49b"
 dependencies = [
  "base64",
  "bincode",
@@ -2499,7 +2505,7 @@ dependencies = [
  "solana-sdk-ids",
  "solana-slot-hashes",
  "solana-stable-layout",
- "solana-stake-interface",
+ "solana-stake-history",
  "solana-svm-callback",
  "solana-svm-feature-set",
  "solana-svm-log-collector",
@@ -2690,27 +2696,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "solana-stake-interface"
-version = "4.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afe327b8f7e6b2e696343f90fd338ee69117cec3ad08747251c6ccfa7063f937"
-dependencies = [
- "num-traits",
- "serde",
- "serde_derive",
- "solana-clock",
- "solana-cpi",
- "solana-instruction",
- "solana-program-error",
- "solana-pubkey",
- "solana-stake-history",
- "solana-system-interface",
-]
-
-[[package]]
 name = "solana-svm-callback"
-version = "4.3.0-alpha.0"
-source = "git+https://github.com/anza-xyz/agave-runtime.git#ac3d5108ba5e321253482b4bb0f3e5f181767383"
+version = "4.3.0-alpha.1"
+source = "git+https://github.com/anza-xyz/agave-runtime.git#ceb41c692ee86612ff0700f833102ea3f674e49b"
 dependencies = [
  "solana-account",
  "solana-clock",
@@ -2720,26 +2708,26 @@ dependencies = [
 
 [[package]]
 name = "solana-svm-feature-set"
-version = "4.3.0-alpha.0"
-source = "git+https://github.com/anza-xyz/agave-runtime.git#ac3d5108ba5e321253482b4bb0f3e5f181767383"
+version = "4.3.0-alpha.1"
+source = "git+https://github.com/anza-xyz/agave-runtime.git#ceb41c692ee86612ff0700f833102ea3f674e49b"
 
 [[package]]
 name = "solana-svm-log-collector"
-version = "4.3.0-alpha.0"
-source = "git+https://github.com/anza-xyz/agave-runtime.git#ac3d5108ba5e321253482b4bb0f3e5f181767383"
+version = "4.3.0-alpha.1"
+source = "git+https://github.com/anza-xyz/agave-runtime.git#ceb41c692ee86612ff0700f833102ea3f674e49b"
 dependencies = [
  "log",
 ]
 
 [[package]]
 name = "solana-svm-measure"
-version = "4.3.0-alpha.0"
-source = "git+https://github.com/anza-xyz/agave-runtime.git#ac3d5108ba5e321253482b4bb0f3e5f181767383"
+version = "4.3.0-alpha.1"
+source = "git+https://github.com/anza-xyz/agave-runtime.git#ceb41c692ee86612ff0700f833102ea3f674e49b"
 
 [[package]]
 name = "solana-svm-timings"
-version = "4.3.0-alpha.0"
-source = "git+https://github.com/anza-xyz/agave-runtime.git#ac3d5108ba5e321253482b4bb0f3e5f181767383"
+version = "4.3.0-alpha.1"
+source = "git+https://github.com/anza-xyz/agave-runtime.git#ceb41c692ee86612ff0700f833102ea3f674e49b"
 dependencies = [
  "eager",
  "enum-iterator",
@@ -2762,16 +2750,16 @@ dependencies = [
 
 [[package]]
 name = "solana-svm-type-overrides"
-version = "4.3.0-alpha.0"
-source = "git+https://github.com/anza-xyz/agave-runtime.git#ac3d5108ba5e321253482b4bb0f3e5f181767383"
+version = "4.3.0-alpha.1"
+source = "git+https://github.com/anza-xyz/agave-runtime.git#ceb41c692ee86612ff0700f833102ea3f674e49b"
 dependencies = [
  "rand 0.9.4",
 ]
 
 [[package]]
 name = "solana-syscalls"
-version = "4.3.0-alpha.0"
-source = "git+https://github.com/anza-xyz/agave-runtime.git#ac3d5108ba5e321253482b4bb0f3e5f181767383"
+version = "4.3.0-alpha.1"
+source = "git+https://github.com/anza-xyz/agave-runtime.git#ceb41c692ee86612ff0700f833102ea3f674e49b"
 dependencies = [
  "bincode",
  "libsecp256k1",
@@ -2798,7 +2786,7 @@ dependencies = [
  "solana-sha256-hasher",
  "solana-sha512-hasher",
  "solana-stable-layout",
- "solana-stake-interface",
+ "solana-stake-history",
  "solana-svm-feature-set",
  "solana-svm-log-collector",
  "solana-svm-type-overrides",
@@ -2827,8 +2815,8 @@ dependencies = [
 
 [[package]]
 name = "solana-system-program"
-version = "4.3.0-alpha.0"
-source = "git+https://github.com/anza-xyz/agave-runtime.git#ac3d5108ba5e321253482b4bb0f3e5f181767383"
+version = "4.3.0-alpha.1"
+source = "git+https://github.com/anza-xyz/agave-runtime.git#ceb41c692ee86612ff0700f833102ea3f674e49b"
 dependencies = [
  "bincode",
  "log",
@@ -2911,8 +2899,8 @@ dependencies = [
 
 [[package]]
 name = "solana-transaction-context"
-version = "4.3.0-alpha.0"
-source = "git+https://github.com/anza-xyz/agave-runtime.git#ac3d5108ba5e321253482b4bb0f3e5f181767383"
+version = "4.3.0-alpha.1"
+source = "git+https://github.com/anza-xyz/agave-runtime.git#ceb41c692ee86612ff0700f833102ea3f674e49b"
 dependencies = [
  "bincode",
  "qualifier_attr",

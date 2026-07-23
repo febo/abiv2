@@ -9,6 +9,7 @@ members = [
     "programs/cpi",
     "programs/deny-allocator",
     "programs/return-data",
+    "programs/rent-sysvar",
     "programs/trace",
     "programs/transfer-lamports",
     "sdk"
