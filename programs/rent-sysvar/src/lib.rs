@@ -21,7 +21,7 @@ pub fn process_instruction(
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
-    let rent = Rent::get()?;
+    let rent = Rent::get();
     let rent_data = rent_account.try_borrow()?;
 
     assert!(rent_data.len() >= 8);
